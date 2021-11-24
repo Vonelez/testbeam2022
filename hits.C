@@ -57,7 +57,6 @@ void hits::Loop()
 	//      root> t.Show(16);     // Read and show values of entry 16
 	//      root> t.Loop();       // Loop on all entries
 	//
-
 	//     This is the loop skeleton where:
 	//    jentry is the global entry number in the chain
 	//    ientry is the entry number in the current Tree
@@ -72,6 +71,10 @@ void hits::Loop()
 	// METHOD2: replace line
 	//    fChain->GetEntry(jentry);       //read all branches
 	// by  b_branchname->GetEntry(ientry); //read only this branch
+	double tStart = 18;
+	double tEnd = 38;
+	double spillEnd = 23;
+
 	if (fChain == 0)
 		return;
 
@@ -80,9 +83,6 @@ void hits::Loop()
 	// std::cout << test[0].id << std::endl;
 
 	Long64_t nentries = fChain->GetEntriesFast();
-
-	double tStart = 18;
-	double tEnd = 38;
 
 	TH2D *ch_vs_time_trigger = new TH2D(
 		"ch_vs_time_trigger", "ch_vs_time_trigger; TIME, s; FEC 2 VMM 8 CHANELS",
@@ -152,7 +152,6 @@ void hits::Loop()
 		new TH2D("adc_vs_bcid_gem", "GEM 3 PLANE 0 CH 38; ADC; BCID", 300, 0, 1200, 600, 0., 4200.);
 
 	Long64_t nbytes = 0, nb = 0;
-	double spillEnd = 23;
 	long double triggerTime = 0.;
 	for (Long64_t jentry = 0; jentry < nentries; jentry++)
 	{
