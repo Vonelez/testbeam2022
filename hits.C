@@ -126,7 +126,7 @@ void hits::Loop()
 
 	TH1D *deltaT_GEM3_trigger =
 		new TH1D("deltaT_GEM3_trigger", "deltaT_GEM3_trigger; #Delta t, ns;",
-				 2000, -1000., 1000.);
+				 2000, -1000, 1000);
 	TH1D *deltaT_straw_trigger =
 		new TH1D("deltaT_straw_trigger", "deltaT_straw_trigger; #Delta t, ns;",
 				 2000, -1000., 1000.);
@@ -145,11 +145,22 @@ void hits::Loop()
 		new TH2D("tdc_vs_bcid_gem", "GEM 3 PLANE 0 CH 38; TDC; BCID", 50, 0.,
 				 200., 600, 0., 4200.);
 	TH2D *adc_vs_bcid_straw =
-		new TH2D("adc_vs_bcid_straw", "STRAW FEC 2 VMM 10 CH 55; ADC; BCID", 300, 0, 1200, 600, 0., 4200.);
+		new TH2D("adc_vs_bcid_straw", "STRAW FEC 2 VMM 10 CH 55; ADC; BCID", 300, 0, 1200,
+				 600, 0., 4200.);
 	TH2D *adc_vs_bcid_trigger =
-		new TH2D("adc_vs_bcid_trigger", "TRIGGER FEC 2 VMM 8 CH 63; ADC; BCID", 300, 0, 1200, 600, 0., 4200.);
+		new TH2D("adc_vs_bcid_trigger", "TRIGGER FEC 2 VMM 8 CH 63; ADC; BCID", 300, 0, 1200,
+				 600, 0., 4200.);
 	TH2D *adc_vs_bcid_gem =
 		new TH2D("adc_vs_bcid_gem", "GEM 3 PLANE 0 CH 38; ADC; BCID", 300, 0, 1200, 600, 0., 4200.);
+
+	TH2D *Tstraw_vs_Ttrigger =
+		new TH2D("Tstraw_vs_Ttrigger", "FEC 2 VMM vs FEC 2 VMM 8 CH 63; Trigger t, s; GEM t, s", 100, tStart, spillEnd, 100, tStart, spillEnd);
+
+	TH2D *Tgem_vs_Ttrigger =
+		new TH2D("Tgem_vs_Ttrigger", "GEM 3 vs FEC 2 VMM 8 CH 63; Trigger t, s; GEM t, s", 100, tStart, spillEnd, 100, tStart, spillEnd);
+
+	TH1D *GEMy2_vs_GEMy3 = new TH1D("GEM2 vs GEM1", "GEM Y planes #Delta t; #Delta t; ns", 2000, 0., 0.);
+	TH1D *STRAWy_vs_GEMy3 = new TH1D("STRAWy_vs_GEMy3", "STRAW Y vs GEM3 Y plane #Delta t; #Delta t, ns", 2000, 0., 0.);
 
 	Long64_t nbytes = 0, nb = 0;
 	long double triggerTime = 0.;
@@ -185,9 +196,42 @@ void hits::Loop()
 					tdc_vs_bcid_gem->Fill(hits_tdc[i], hits_bcid[i]);
 					adc_vs_bcid_gem->Fill(hits_adc[i], hits_bcid[i]);
 				}
+
+				if (hits_det[i] == 3 && hits_plane[i] == 1)
+				{
+					long double gemTime = (long double)hits_time[i];
+					for (int j = 0; j < hits_; j++)
+					{
+						if (i == j)
+						{
+							continue;
+						}
+						if (hits_time[j] / 1e9 > spillEnd)
+						{
+							continue;
+						}
+
+						if (abs(gemTime - (long double)hits_time[j]) > 1e8)
+						{
+							continue;
+						}
+
+						if (hits_det[j] == 1 && hits_plane[j] == 1)
+						{
+							// std::cout << "1" << std::endl;
+							GEMy2_vs_GEMy3->Fill(gemTime - (long double)hits_time[j]);
+						}
+
+						if (hits_fec[j] == 2 && hits_vmm[j] == 10)
+						{
+							// std::cout << "2" << std::endl;
+							STRAWy_vs_GEMy3->Fill(gemTime - (long double)hits_time[j]);
+						}
+					}
+				}
 			}
 
-			if (hits_fec[i] == 2 && hits_vmm[i] == 8)
+			if (hits_fec[i] == 2 && hits_vmm[i] == 8 && hits_ch[i] == 63)
 			{
 				triggerTime = (long double)hits_time[i];
 				ch_vs_time_trigger->Fill((long double)hits_time[i] / 1e9,
@@ -220,11 +264,13 @@ void hits::Loop()
 						{
 							deltaT_straw_trigger->Fill(triggerTime -
 													   (long double)hits_time[j]);
+							Tstraw_vs_Ttrigger->Fill(triggerTime / 1e9, (long double)hits_time[j] / 1e9);
 						}
 					}
 					if (hits_det[j] == 3)
 					{
 						deltaT_GEM3_trigger->Fill(triggerTime - (long double)hits_time[j]);
+						Tgem_vs_Ttrigger->Fill(triggerTime / 1e9, (long double)hits_time[j] / 1e9);
 					}
 				}
 			}
@@ -317,7 +363,7 @@ void hits::Loop()
 		}
 	}
 
-	TFile *out = new TFile("cut_peak.root", "RECREATE");
+	TFile *out = new TFile("cut_peak_63.root", "RECREATE");
 	hitsHist->Write("hitsPerEntry");
 	ch_vs_time_trigger->Write("ch_vs_time_trigger");
 	ch_vs_time_GEM3_0->Write("ch_vs_time_GEM3_0");
@@ -327,6 +373,10 @@ void hits::Loop()
 	noiseCheck->Write("noiseCheck");
 	deltaT_GEM3_trigger->Write("deltaT_GEM3_trigger");
 	deltaT_straw_trigger->Write("deltaT_straw_trigger");
+	Tstraw_vs_Ttrigger->Write("Tstraw_vs_Ttrigger");
+	Tgem_vs_Ttrigger->Write("Tgem_vs_Ttrigger");
+	GEMy2_vs_GEMy3->Write("GEMy2_vs_GEMy3");
+	STRAWy_vs_GEMy3->Write("STRAWy_vs_GEMy3");
 	bcid->Write("bcid");
 	tdc->Write("tdc");
 	adc->Write("adc");
