@@ -86,7 +86,7 @@ void hits::Loop()
 
 	TH2D *ch_vs_time_trigger = new TH2D(
 		"ch_vs_time_trigger", "ch_vs_time_trigger; TIME, s; FEC 2 VMM 8 CHANELS",
-		200, tStart, tEnd, 40, 30., 70.);
+		200, tStart, tEnd, 40, 0., 40.);
 	TH2D *ch_vs_time_GEM3_0 = new TH2D(
 		"ch_vs_time_GEM3_0", "ch_vs_time_GEM3_0; TIME, s; GEM 3 PLANE 0 CHANELS",
 		200, tStart, tEnd, 64, 0., 64.);
@@ -99,9 +99,15 @@ void hits::Loop()
 
 	TH1D *noiseCheck = new TH1D("noiseCheck", "noiseCheck", 200, 0, 23);
 
-	TH1D *bcid = new TH1D("bcid", "bcid", 4200, 0, 4200);
+	TH1D *bcid = new TH1D("bcid", "bcid; BCID", 4200, 0, 4200);
+	TH1D *bcid_straw = new TH1D("bcid_straw", "bcid_straw; BCID", 4200, 0, 4200);
+	TH1D *bcid_gem = new TH1D("bcid_gem", "bcid_gem; BCID", 4200, 0, 4200);
 	TH1D *tdc = new TH1D("tdc", "tdc", 500, 0, 500);
 	TH1D *adc = new TH1D("adc", "adc", 1200, 0, 1200);
+
+	TH1D *bcid_trigger_under_cor = new TH1D("bcid_trigger_under_cor", "bcid_trigger_under_cor; BCID", 4200, 0, 4200);
+	TH1D *bcid_straw_under_cor = new TH1D("bcid_straw_under_cor", "bcid_straw_under_cor; BCID", 4200, 0, 4200);
+	TH1D *bcid_gem_under_cor = new TH1D("bcid_gem_under_cor", "bcid_gem_under_cor; BCID", 4200, 0, 4200);
 
 	TH1D *plane0 = new TH1D("plane0", "plane0", 128, 0, 256);
 	TH1D *plane1 = new TH1D("plane1", "plane1", 128, 0, 256);
@@ -125,11 +131,17 @@ void hits::Loop()
 		"beam_profile_3", "beam_profile_3; posX; posY", 128, 0, 256, 128, 0, 256);
 
 	TH1D *deltaT_GEM3_trigger =
-		new TH1D("deltaT_GEM3_trigger", "deltaT_GEM3_trigger; #Delta t, ns;",
-				 2000, -1000, 1000);
+		new TH1D("deltaT_GEM3_trigger", "TScint - TGEM3; #Delta t, ns;",
+				 250, -500, 500);
+	TH1D *deltaT_GEM2_trigger =
+		new TH1D("deltaT_GEM2_trigger", "deltaT_GEM2_trigger; #Delta t, ns;",
+				 2000, 0, 0);
+	TH1D *deltaT_GEM1_trigger =
+		new TH1D("deltaT_GEM1_trigger", "deltaT_GEM1_trigger; #Delta t, ns;",
+				 2000, 0, 0);
 	TH1D *deltaT_straw_trigger =
-		new TH1D("deltaT_straw_trigger", "deltaT_straw_trigger; #Delta t, ns;",
-				 2000, -1000., 1000.);
+		new TH1D("deltaT_straw_trigger", "TScint - TStraw; #Delta t, ns;",
+				 250, -500, 500);
 
 	TH1D *ch_check = new TH1D("ch_check", "ch_check", 100, 0., 100.);
 
@@ -159,8 +171,10 @@ void hits::Loop()
 	TH2D *Tgem_vs_Ttrigger =
 		new TH2D("Tgem_vs_Ttrigger", "GEM 3 vs FEC 2 VMM 8 CH 63; Trigger t, s; GEM t, s", 100, tStart, spillEnd, 100, tStart, spillEnd);
 
-	TH1D *GEMy2_vs_GEMy3 = new TH1D("GEM2 vs GEM1", "GEM Y planes #Delta t; #Delta t; ns", 2000, 0., 0.);
-	TH1D *STRAWy_vs_GEMy3 = new TH1D("STRAWy_vs_GEMy3", "STRAW Y vs GEM3 Y plane #Delta t; #Delta t, ns", 2000, 0., 0.);
+	TH1D *GEMy2_vs_GEMy3 = new TH1D("GEM3 vs GEM2", "GEM Y planes #Delta t; #Delta t, ns", 2000, 0., 0.);
+	TH1D *GEMy1_vs_GEMy3 = new TH1D("GEM3 vs GEM1", "GEM Y planes #Delta t; #Delta t, ns", 2000, 0., 0.);
+	TH1D *GEMy1_vs_GEMy2 = new TH1D("GEM2 vs GEM1", "GEM Y planes #Delta t; #Delta t, ns", 3000, -3000., 3000.);
+	TH1D *STRAWy_vs_GEMy3 = new TH1D("STRAWy_vs_GEMy3", "TGEM - TStraw; #Delta t, ns", 250, -500, 500);
 
 	Long64_t nbytes = 0, nb = 0;
 	long double triggerTime = 0.;
@@ -179,8 +193,9 @@ void hits::Loop()
 				continue;
 			if (hits_time[i] / 1e9 <= spillEnd)
 			{
-				if (hits_fec[i] == 2 && hits_vmm[i] == 10 && hits_ch[i] == 55)
+				if (hits_fec[i] == 2 && hits_vmm[i] == 10)
 				{
+					bcid_straw->Fill(hits_bcid[i]);
 					tdc_vs_bcid_straw->Fill(hits_tdc[i], hits_bcid[i]);
 					adc_vs_bcid_straw->Fill(hits_adc[i], hits_bcid[i]);
 				}
@@ -191,10 +206,36 @@ void hits::Loop()
 					adc_vs_bcid_trigger->Fill(hits_adc[i], hits_bcid[i]);
 				}
 
-				if (hits_det[i] == 3 && hits_plane[i] == 0 && hits_ch[i] == 38)
+				if (hits_det[i] == 3 && hits_plane[i] == 0 && hits_vmm[i] == 7)
 				{
+					bcid_gem->Fill(hits_bcid[i]);
 					tdc_vs_bcid_gem->Fill(hits_tdc[i], hits_bcid[i]);
 					adc_vs_bcid_gem->Fill(hits_adc[i], hits_bcid[i]);
+				}
+				if (hits_det[i] == 2 && hits_plane[i] == 1)
+				{
+					long double gemTime = (long double)hits_time[i];
+					for (int j = 0; j < hits_; j++)
+					{
+						if (i == j)
+						{
+							continue;
+						}
+						if (hits_time[j] / 1e9 > spillEnd)
+						{
+							continue;
+						}
+
+						if (abs(gemTime - (long double)hits_time[j]) > 1e6)
+						{
+							continue;
+						}
+
+						if (hits_det[j] == 1 && hits_plane[j] == 1)
+						{
+							GEMy1_vs_GEMy2->Fill(gemTime - (long double)hits_time[j]);
+						}
+					}
 				}
 
 				if (hits_det[i] == 3 && hits_plane[i] == 1)
@@ -211,20 +252,23 @@ void hits::Loop()
 							continue;
 						}
 
-						if (abs(gemTime - (long double)hits_time[j]) > 1e8)
+						if (abs(gemTime - (long double)hits_time[j]) > 1e9)
 						{
 							continue;
 						}
 
+						if (hits_det[j] == 2 && hits_plane[j] == 1)
+						{
+							GEMy2_vs_GEMy3->Fill(gemTime - (long double)hits_time[j]);
+						}
+
 						if (hits_det[j] == 1 && hits_plane[j] == 1)
 						{
-							// std::cout << "1" << std::endl;
-							GEMy2_vs_GEMy3->Fill(gemTime - (long double)hits_time[j]);
+							GEMy1_vs_GEMy3->Fill(gemTime - (long double)hits_time[j]);
 						}
 
 						if (hits_fec[j] == 2 && hits_vmm[j] == 10)
 						{
-							// std::cout << "2" << std::endl;
 							STRAWy_vs_GEMy3->Fill(gemTime - (long double)hits_time[j]);
 						}
 					}
@@ -252,25 +296,41 @@ void hits::Loop()
 
 					if (hits_time[j] / 1e9 > spillEnd)
 						continue;
+					
+					if (abs((long double)hits_time[j] - triggerTime) < 3e6)
+					{
+						if (hits_det[j] == 2)
+						{
+							deltaT_GEM2_trigger->Fill(triggerTime - (long double)hits_time[j]);
+						}
+						if (hits_det[j] == 1)
+						{
+							deltaT_GEM1_trigger->Fill(triggerTime - (long double)hits_time[j]);
+						}
+					}
 
 					if (abs((long double)hits_time[j] - triggerTime) > 1e3)
 						continue;
 
 					if (hits_fec[j] == 2)
 					{
-						if (hits_vmm[j] == 8)
+						if (hits_vmm[j] == 8 && hits_ch[j] == 63)
 							continue;
 						if (hits_vmm[j] == 10)
 						{
 							deltaT_straw_trigger->Fill(triggerTime -
 													   (long double)hits_time[j]);
 							Tstraw_vs_Ttrigger->Fill(triggerTime / 1e9, (long double)hits_time[j] / 1e9);
+							bcid_straw_under_cor->Fill(hits_bcid[j]);
+							bcid_trigger_under_cor->Fill(hits_bcid[i]);
+
 						}
 					}
 					if (hits_det[j] == 3)
 					{
 						deltaT_GEM3_trigger->Fill(triggerTime - (long double)hits_time[j]);
 						Tgem_vs_Ttrigger->Fill(triggerTime / 1e9, (long double)hits_time[j] / 1e9);
+						bcid_gem_under_cor->Fill(hits_bcid[j]);
 					}
 				}
 			}
@@ -363,7 +423,36 @@ void hits::Loop()
 		}
 	}
 
-	TFile *out = new TFile("cut_peak_63.root", "RECREATE");
+	deltaT_GEM3_trigger->SetLineColor(kGreen -2);
+	deltaT_straw_trigger->SetLineColor(kMagenta);
+	STRAWy_vs_GEMy3->SetLineColor(kBlack);
+
+	TLegend leg(.1,.7,.3,.9,"");
+    leg.SetFillColor(0);
+    leg.AddEntry(deltaT_straw_trigger,"TScint - TStraw");
+    leg.AddEntry(deltaT_GEM3_trigger,"TScint - TGEM3");
+	leg.AddEntry(STRAWy_vs_GEMy3,"TGEM3 - TStraw");
+    
+	
+	TCanvas *three_plots = new TCanvas("correlations", "correlations");
+	three_plots->cd();
+	deltaT_GEM3_trigger->Draw();
+	deltaT_straw_trigger->Draw("SAME");
+	STRAWy_vs_GEMy3->Draw("SAME");
+	leg.DrawClone("Same");
+	three_plots->SaveAs("3pots_2005.png");
+	
+	deltaT_GEM3_trigger->Fit("gaus","","",0,80);
+	deltaT_straw_trigger->Fit("gaus","","",10,100);
+	STRAWy_vs_GEMy3->Fit("gaus","","",-20,90);
+
+	printf("----> GEM3Sci under peak \t %f \n", deltaT_GEM3_trigger->GetFunction("gaus")->Integral(0,80) / deltaT_GEM3_trigger->GetBinWidth(1));
+	printf("----> StrawSci under peak \t %f \n", deltaT_straw_trigger->GetFunction("gaus")->Integral(10,100) / deltaT_straw_trigger->GetBinWidth(1));
+	printf("----> GEM3straw under peak \t %f \n", STRAWy_vs_GEMy3->GetFunction("gaus")->Integral(-20,90) / STRAWy_vs_GEMy3->GetBinWidth(1));
+
+	gStyle->SetOptFit();
+
+	TFile *out = new TFile("cut_peak_2005.root", "RECREATE");
 	hitsHist->Write("hitsPerEntry");
 	ch_vs_time_trigger->Write("ch_vs_time_trigger");
 	ch_vs_time_GEM3_0->Write("ch_vs_time_GEM3_0");
@@ -372,12 +461,21 @@ void hits::Loop()
 	ch_check->Write("ch_check");
 	noiseCheck->Write("noiseCheck");
 	deltaT_GEM3_trigger->Write("deltaT_GEM3_trigger");
+	deltaT_GEM2_trigger->Write("deltaT_GEM2_trigger");
+	deltaT_GEM1_trigger->Write("deltaT_GEM1_trigger");
 	deltaT_straw_trigger->Write("deltaT_straw_trigger");
 	Tstraw_vs_Ttrigger->Write("Tstraw_vs_Ttrigger");
 	Tgem_vs_Ttrigger->Write("Tgem_vs_Ttrigger");
 	GEMy2_vs_GEMy3->Write("GEMy2_vs_GEMy3");
+	GEMy1_vs_GEMy3->Write("GEMy1_vs_GEMy3");
+	GEMy1_vs_GEMy2->Write("GEMy1_vs_GEMy2");
 	STRAWy_vs_GEMy3->Write("STRAWy_vs_GEMy3");
 	bcid->Write("bcid");
+	bcid_straw->Write("bcid_straw");
+	bcid_gem->Write("bcid_gem");
+	bcid_trigger_under_cor->Write("bcid_trigger_under_cor");
+	bcid_straw_under_cor->Write("bcid_straw_under_cor");
+	bcid_gem_under_cor->Write("bcid_gem_under_cor");
 	tdc->Write("tdc");
 	adc->Write("adc");
 	beam_profile->Write("beam_profile");
