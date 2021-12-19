@@ -71,17 +71,17 @@ public:
 
 #endif
 
-#ifdef hits_cxx
+// #ifdef hits_cxx 
 hits::hits(TTree *tree) : fChain(0)
 {
     // if parameter tree is not specified (or zero), connect the file
     // used to generate this class and read the Tree.
     if (tree == 0)
     {
-        TFile *f = (TFile *)gROOT->GetListOfFiles()->FindObject("at_peak.root");
+        TFile *f = (TFile *)gROOT->GetListOfFiles()->FindObject("1522_at_peak_full.root");
         if (!f || !f->IsOpen())
         {
-            f = new TFile("at_peak.root");
+            f = new TFile("1522_at_peak_full.root");
         }
         f->GetObject("hits", tree);
     }
@@ -181,4 +181,4 @@ Int_t hits::Cut(Long64_t entry)
     // returns -1 otherwise.
     return 1;
 }
-#endif // #ifdef hits_cxx
+// #endif // #ifdef hits_cxx

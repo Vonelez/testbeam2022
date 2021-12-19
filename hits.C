@@ -71,9 +71,9 @@ void hits::Loop()
 	// METHOD2: replace line
 	//    fChain->GetEntry(jentry);       //read all branches
 	// by  b_branchname->GetEntry(ientry); //read only this branch
-	double tStart = 18;
-	double tEnd = 38;
-	double spillEnd = 23;
+	double tStart = 6;
+	double tEnd = 142;
+	double spillEnd = 142;
 
 	if (fChain == 0)
 		return;
@@ -200,7 +200,7 @@ void hits::Loop()
 					adc_vs_bcid_straw->Fill(hits_adc[i], hits_bcid[i]);
 				}
 
-				if (hits_fec[i] == 2 && hits_vmm[i] == 8 && hits_ch[i] == 63)
+				if (hits_fec[i] == 2 && hits_vmm[i] == 9 && hits_ch[i] == 0)
 				{
 					tdc_vs_bcid_trigger->Fill(hits_tdc[i], hits_bcid[i]);
 					adc_vs_bcid_trigger->Fill(hits_adc[i], hits_bcid[i]);
@@ -275,7 +275,7 @@ void hits::Loop()
 				}
 			}
 
-			if (hits_fec[i] == 2 && hits_vmm[i] == 8 && hits_ch[i] == 63)
+			if (hits_fec[i] == 2 && hits_vmm[i] == 9 && hits_ch[i] == 0)
 			{
 				triggerTime = (long double)hits_time[i];
 				ch_vs_time_trigger->Fill((long double)hits_time[i] / 1e9,
@@ -314,7 +314,7 @@ void hits::Loop()
 
 					if (hits_fec[j] == 2)
 					{
-						if (hits_vmm[j] == 8 && hits_ch[j] == 63)
+						if (hits_vmm[j] == 9 && hits_ch[j] == 0)
 							continue;
 						if (hits_vmm[j] == 10)
 						{
@@ -440,11 +440,11 @@ void hits::Loop()
 	deltaT_straw_trigger->Draw("SAME");
 	STRAWy_vs_GEMy3->Draw("SAME");
 	leg.DrawClone("Same");
-	three_plots->SaveAs("3pots_2005.png");
+	three_plots->SaveAs("3pots_1522_full.png");
 	
-	deltaT_GEM3_trigger->Fit("gaus","","",0,80);
-	deltaT_straw_trigger->Fit("gaus","","",10,100);
-	STRAWy_vs_GEMy3->Fit("gaus","","",-20,90);
+	deltaT_GEM3_trigger->Fit("gaus","","",-200,-80);
+	deltaT_straw_trigger->Fit("gaus","","",-150,50);
+	STRAWy_vs_GEMy3->Fit("gaus","","",-50,80);
 
 	printf("----> GEM3Sci under peak \t %f \n", deltaT_GEM3_trigger->GetFunction("gaus")->Integral(0,80) / deltaT_GEM3_trigger->GetBinWidth(1));
 	printf("----> StrawSci under peak \t %f \n", deltaT_straw_trigger->GetFunction("gaus")->Integral(10,100) / deltaT_straw_trigger->GetBinWidth(1));
@@ -452,7 +452,7 @@ void hits::Loop()
 
 	gStyle->SetOptFit();
 
-	TFile *out = new TFile("cut_peak_2005.root", "RECREATE");
+	TFile *out = new TFile("cut_peak_1522_full.root", "RECREATE");
 	hitsHist->Write("hitsPerEntry");
 	ch_vs_time_trigger->Write("ch_vs_time_trigger");
 	ch_vs_time_GEM3_0->Write("ch_vs_time_GEM3_0");
