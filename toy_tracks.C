@@ -19,27 +19,31 @@ struct pseudo_track
 	int straw_id;
 	int scint_id;
 	int gem_id;
+	int gem_ch;
+	long double gem_scint;
 };
 
-std::string prd(const double x, const int decDigits, const int width) {
-    stringstream ss;
-    ss << fixed << right;
-    ss.fill(' ');        // fill space around displayed #
-    ss.width(width);     // set  width around displayed #
-    ss.precision(decDigits); // set # places after decimal
-    ss << x;
-    return ss.str();
+std::string prd(const double x, const int decDigits, const int width)
+{
+	stringstream ss;
+	ss << fixed << right;
+	ss.fill(' ');			 // fill space around displayed #
+	ss.width(width);		 // set  width around displayed #
+	ss.precision(decDigits); // set # places after decimal
+	ss << x;
+	return ss.str();
 };
 
-std::string center(const string s, const int w) {
-    stringstream ss, spaces;
-    int padding = w - s.size();                 // count excess room to pad
-    for(int i=0; i<padding/2; ++i)
-        spaces << " ";
-    ss << spaces.str() << s << spaces.str();    // format with padding
-    if(padding>0 && padding%2!=0)               // if odd #, add 1 space
-        ss << " ";
-    return ss.str();
+std::string center(const string s, const int w)
+{
+	stringstream ss, spaces;
+	int padding = w - s.size(); // count excess room to pad
+	for (int i = 0; i < padding / 2; ++i)
+		spaces << " ";
+	ss << spaces.str() << s << spaces.str(); // format with padding
+	if (padding > 0 && padding % 2 != 0)	 // if odd #, add 1 space
+		ss << " ";
+	return ss.str();
 };
 
 // bool compareByTime(const pseudo_track &a, const pseudo_track &b) { return a.time < b.time; }
@@ -68,6 +72,9 @@ void hits::Loop()
 	vector<pseudo_track> typeA;
 	vector<pseudo_track> typeB;
 
+	int gem_ch = 0;
+	long double gem_scint_deltaT = 0;
+
 	if (fChain == 0)
 		return;
 
@@ -90,7 +97,16 @@ void hits::Loop()
 			if (hits_det[i] == 3 && hits_plane[i] == 1)
 			{
 				long double gemTime = (long double)hits_time[i];
-				int scinId = 0;
+				if (hits_vmm[i] > 1)
+				{
+					hits_vmm[i] -= 2;
+				}
+				else
+				{
+					hits_vmm[i] += 2;
+				}
+				gem_ch = 64 * (int)hits_vmm[i] + (int)hits_ch[i]; 
+				int scinId = -1;
 
 				for (int j = 0; j < hits_; j++)
 				{
@@ -105,10 +121,13 @@ void hits::Loop()
 						if ((long double)hits_time[j] - gemTime > mean_gem_scint + 4 * sigma_gem_scint ||
 							(long double)hits_time[j] - gemTime < mean_gem_scint - 4 * sigma_gem_scint)
 						{
+							gem_scint_deltaT = -1.0;
 							continue;
+
 						}
 						else
 						{
+							gem_scint_deltaT = gemTime - (long double)hits_time[j];
 							scinId = (int)hits_id[j];
 						}
 					}
@@ -122,38 +141,15 @@ void hits::Loop()
 						}
 						else
 						{
-							long double trawTime = (long double)hits_time[j];
-							if (hits_vmm[i] > 1)
-							{
-								hits_vmm[i] -= 2;
-							}
-							else
-							{
-								hits_vmm[i] += 2;
-							}
 							if (hits_id[j] % 4 == 0)
 							{
-								GemY_vs_StrawTypeA->Fill((int)hits_ch[j], 64 * (int)hits_vmm[i] + (int)hits_ch[i]);
-								if (scinId == 0)
-								{
-									typeA.push_back({(int)hits_id[j], -1 ,(int)hits_id[i]});
-								}
-								else
-								{
-									typeA.push_back({(int)hits_id[j], scinId ,(int)hits_id[i]});
-								}
+								GemY_vs_StrawTypeA->Fill((int)hits_ch[j], gem_ch);
+								typeA.push_back({(int)hits_id[j], scinId, (int)hits_id[i], gem_ch, gem_scint_deltaT});
 							}
 							else if (hits_id[j] % 4 == 3)
 							{
-								GemY_vs_StrawTypeB->Fill((int)hits_ch[j], 64 * (int)hits_vmm[i] + (int)hits_ch[i]);
-								if (scinId == 0)
-								{
-									typeB.push_back({(int)hits_id[j], -1 ,(int)hits_id[i]});
-								}
-								else
-								{
-									typeB.push_back({(int)hits_id[j], scinId ,(int)hits_id[i]});
-								}
+								GemY_vs_StrawTypeB->Fill((int)hits_ch[j], gem_ch);
+								typeB.push_back({(int)hits_id[j], scinId, (int)hits_id[i], gem_ch, gem_scint_deltaT});
 							}
 							else
 							{
@@ -167,37 +163,42 @@ void hits::Loop()
 	}
 
 	ofstream file_TypeA;
-	file_TypeA.open ("TypeA.txt");
+	file_TypeA.open("TypeA.txt");
 
+	file_TypeA << center("STRAW ID", 15) << " | "
+			   << center("SCINT ID", 15) << " | "
+			   << center("GEM3Y ID", 15) << " | "
+			   << center("GEM3Y CH", 15) << " | "
+			   << center("GEM - SCINT dT", 15) << "\n";
+	file_TypeA << std::string(15 * 5 + 2 * 5, '-') << "\n";
 
-	file_TypeA << center("STRAW ID",15) << " | "
-          	  << center("SCINT ID",15) << " | "
-         	  << center("GEM3Y ID",15) << "\n";
-	file_TypeA << std::string(15*3 + 2*3, '-') << "\n";
-	
 	for (int i = 0; i < typeA.size(); i++)
 	{
-		file_TypeA << prd(typeA[i].straw_id,0,15) << " | "
-          	      << prd(typeA[i].scint_id,0,15) << " | "
-         	      << prd(typeA[i].gem_id,0,15)   << "\n";
+		file_TypeA << prd(typeA[i].straw_id, 0, 15) << " | "
+				   << prd(typeA[i].scint_id, 0, 15) << " | "
+				   << prd(typeA[i].gem_id, 0, 15) 	<< " | "
+				   << prd(typeA[i].gem_ch, 0, 15) 	<< " | "
+				   << prd(typeA[i].gem_scint, 0, 15) << "\n";
 	}
 
 	ofstream file_TypeB;
-	file_TypeB.open ("TypeB.txt");
+	file_TypeB.open("TypeB.txt");
 
+	file_TypeB << center("STRAW ID", 15) << " | "
+			   << center("SCINT ID", 15) << " | "
+			   << center("GEM3Y ID", 15) << " | "
+			   << center("GEM3Y CH", 15) << " | "
+			   << center("GEM - SCINT dT", 15) << "\n";
+	file_TypeB << std::string(15 * 5 + 2 * 5, '-') << "\n";
 
-	file_TypeB << center("STRAW ID",15) << " | "
-          	  << center("SCINT ID",15) << " | "
-         	  << center("GEM3Y ID",15) << "\n";
-	file_TypeB << std::string(15*3 + 2*3, '-') << "\n";
-	
 	for (int i = 0; i < typeB.size(); i++)
 	{
-		file_TypeB << prd(typeB[i].straw_id,0,15) << " | "
-          	      << prd(typeB[i].scint_id,0,15) << " | "
-         	      << prd(typeB[i].gem_id,0,15)   << "\n";
+		file_TypeB << prd(typeB[i].straw_id, 0, 15) << " | "
+				   << prd(typeB[i].scint_id, 0, 15) << " | "
+				   << prd(typeB[i].gem_id, 0, 15) 	<< " | "
+				   << prd(typeB[i].gem_ch, 0, 15) 	<< " | "
+				   << prd(typeB[i].gem_scint, 0, 15) << "\n";
 	}
-	
 
 	gStyle->SetOptFit();
 
