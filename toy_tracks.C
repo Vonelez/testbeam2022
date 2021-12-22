@@ -169,8 +169,8 @@ void hits::Loop()
 			   << center("SCINT ID", 15) << " | "
 			   << center("GEM3Y ID", 15) << " | "
 			   << center("GEM3Y CH", 15) << " | "
-			   << center("GEM - SCINT dT", 15) << "\n";
-	file_TypeA << std::string(15 * 5 + 2 * 5, '-') << "\n";
+			   << center("GEM - SCINT dT, ns", 15) << "\n";
+	file_TypeA << std::string(15 * 5 + 3 * 5, '-') << "\n";
 
 	for (int i = 0; i < typeA.size(); i++)
 	{
@@ -188,8 +188,8 @@ void hits::Loop()
 			   << center("SCINT ID", 15) << " | "
 			   << center("GEM3Y ID", 15) << " | "
 			   << center("GEM3Y CH", 15) << " | "
-			   << center("GEM - SCINT dT", 15) << "\n";
-	file_TypeB << std::string(15 * 5 + 2 * 5, '-') << "\n";
+			   << center("GEM - SCINT dT, ns", 15) << "\n";
+	file_TypeB << std::string(15 * 5 + 3 * 5, '-') << "\n";
 
 	for (int i = 0; i < typeB.size(); i++)
 	{
