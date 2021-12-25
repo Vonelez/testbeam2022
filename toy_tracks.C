@@ -2,6 +2,7 @@
 #define toy_tracks_cxx
 
 #include "hits.h"
+#include "tqdm/tqdm.h"
 
 #include <TCanvas.h>
 #include <TH1.h>
@@ -20,7 +21,9 @@ struct pseudo_track
 	int scint_id;
 	int gem_id;
 	int gem_ch;
+	double gem_weight;
 	long double gem_scint;
+	long double gem_straw;
 };
 
 std::string prd(const double x, const int decDigits, const int width)
@@ -46,10 +49,6 @@ std::string center(const string s, const int w)
 	return ss.str();
 };
 
-// bool compareByTime(const pseudo_track &a, const pseudo_track &b) { return a.time < b.time; }
-
-// bool comp(const pseudo_track &lhs, const pseudo_track &rhs) { return lhs.id == rhs.id; }
-
 void hits::Loop()
 {
 	TH2D *GemY_vs_StrawTypeA = new TH2D(
@@ -60,9 +59,6 @@ void hits::Loop()
 		"GemY_vs_StrawTypeB", "GemY_vs_StrawTypeB; StrawTypeB, ch; GEM3 Y-plane, ch",
 		32, 0, 64, 128, 0, 256);
 
-	// double tStart = 18;
-	// double tEnd = 38;
-
 	double sigma_gem_straw = 21.69;
 	double mean_gem_straw = 28.75;
 
@@ -72,14 +68,20 @@ void hits::Loop()
 	vector<pseudo_track> typeA;
 	vector<pseudo_track> typeB;
 
+	vector<vector< pseudo_track >> typeAbasedTracks;
+
 	int gem_ch = 0;
+	double gem_weight = 0;
+
 	long double gem_scint_deltaT = 0;
+	long double gem_straw_deltaT = 0;
 
 	if (fChain == 0)
 		return;
 
 	Long64_t nentries = fChain->GetEntriesFast();
 	Long64_t nbytes = 0, nb = 0;
+	// for (Long64_t jentry : tqdm::range(nentries))
 	for (Long64_t jentry = 0; jentry < nentries; jentry++)
 	{
 		Long64_t ientry = LoadTree(jentry);
@@ -92,11 +94,36 @@ void hits::Loop()
 		for (int i = 0; i < hits_; i++)
 		{
 			if (!hits_over_threshold[i])
-				continue;
+			{
+				// if (hits_det[i] == 3 && hits_plane[i] == 1)
+				// {
+				// 	long double gemTime = (long double)hits_time[i];
+				// 	for (int j = 0; j < hits_; j++)
+				// 	{
+				// 		if (!hits_over_threshold[j])
+				// 			continue;
+				// 		if (i == j)
+				// 			continue;
 
+				// 		if (abs(gemTime - (long double)hits_time[j]) < 300)
+				// 			std::cout << "Det det " << (int)hits_det[j] << " det vmm (int)hits_vmm[j] " << (int)hits_vmm[j] << "\n";
+				// 		else
+				// 		{
+				// 			continue;
+				// 		}
+				// 	}
+				// }
+				
+				continue;
+			}
+			// else 
+			// {
+			// 	continue;
+			// }
 			if (hits_det[i] == 3 && hits_plane[i] == 1)
 			{
 				long double gemTime = (long double)hits_time[i];
+
 				if (hits_vmm[i] > 1)
 				{
 					hits_vmm[i] -= 2;
@@ -105,11 +132,14 @@ void hits::Loop()
 				{
 					hits_vmm[i] += 2;
 				}
-				gem_ch = 64 * (int)hits_vmm[i] + (int)hits_ch[i]; 
+				gem_ch = 64 * (int)hits_vmm[i] + (int)hits_ch[i];
+				gem_weight = (int)hits_adc[i] / 1024.0;
 				int scinId = -1;
 
 				for (int j = 0; j < hits_; j++)
 				{
+					if (!hits_over_threshold[j])
+						continue;
 					if (i == j)
 						continue;
 
@@ -121,9 +151,7 @@ void hits::Loop()
 						if ((long double)hits_time[j] - gemTime > mean_gem_scint + 4 * sigma_gem_scint ||
 							(long double)hits_time[j] - gemTime < mean_gem_scint - 4 * sigma_gem_scint)
 						{
-							gem_scint_deltaT = -1.0;
 							continue;
-
 						}
 						else
 						{
@@ -131,6 +159,9 @@ void hits::Loop()
 							scinId = (int)hits_id[j];
 						}
 					}
+
+					if (scinId == -1)
+						gem_scint_deltaT = -1.0;
 
 					if (hits_fec[j] == 2 && hits_vmm[j] == 10)
 					{
@@ -141,15 +172,16 @@ void hits::Loop()
 						}
 						else
 						{
+							gem_straw_deltaT = gemTime - (long double)hits_time[j];
 							if (hits_id[j] % 4 == 0)
 							{
 								GemY_vs_StrawTypeA->Fill((int)hits_ch[j], gem_ch);
-								typeA.push_back({(int)hits_id[j], scinId, (int)hits_id[i], gem_ch, gem_scint_deltaT});
+								typeA.push_back({(int)hits_id[j], scinId, (int)hits_id[i], gem_ch, gem_weight, gem_scint_deltaT, gem_straw_deltaT});
 							}
 							else if (hits_id[j] % 4 == 3)
 							{
 								GemY_vs_StrawTypeB->Fill((int)hits_ch[j], gem_ch);
-								typeB.push_back({(int)hits_id[j], scinId, (int)hits_id[i], gem_ch, gem_scint_deltaT});
+								typeB.push_back({(int)hits_id[j], scinId, (int)hits_id[i], gem_ch, gem_weight, gem_scint_deltaT, gem_straw_deltaT});
 							}
 							else
 							{
@@ -162,43 +194,176 @@ void hits::Loop()
 		}
 	}
 
+	int typeA_all = 0, typeA_wScint = 0, typeA_woScint = 0;
+	int typeB_all = 0, typeB_wScint = 0, typeB_woScint = 0;
+
 	ofstream file_TypeA;
-	file_TypeA.open("TypeA.txt");
+	file_TypeA.open("TypeA_w_utt.txt");
 
 	file_TypeA << center("STRAW ID", 15) << " | "
 			   << center("SCINT ID", 15) << " | "
 			   << center("GEM3Y ID", 15) << " | "
 			   << center("GEM3Y CH", 15) << " | "
-			   << center("GEM - SCINT dT, ns", 15) << "\n";
-	file_TypeA << std::string(15 * 5 + 3 * 5, '-') << "\n";
+			   << center("GEM - SCINT dT, ns", 20) << " | "
+			   << center("GEM - STRAW dT, ns", 20) << "\n";
+	file_TypeA << std::string(15 * 6 + 3 * 6 + 10, '-') << "\n";
 
-	for (int i = 0; i < typeA.size(); i++)
+	for (int i = 1; i < typeA.size(); i++)
 	{
-		file_TypeA << prd(typeA[i].straw_id, 0, 15) << " | "
-				   << prd(typeA[i].scint_id, 0, 15) << " | "
-				   << prd(typeA[i].gem_id, 0, 15) 	<< " | "
-				   << prd(typeA[i].gem_ch, 0, 15) 	<< " | "
-				   << prd(typeA[i].gem_scint, 0, 15) << "\n";
+		if (typeA[i].scint_id != -1)
+			typeA_wScint++;
+		else
+			typeA_woScint++;
+		typeA_all++;
+
+		if (typeA[i].straw_id == typeA[i - 1].straw_id && typeA[i].scint_id == typeA[i - 1].scint_id)
+		{
+			int j = i;
+			int counter = 0;
+			file_TypeA << prd(typeA[i - 1].straw_id, 0, 15) << " | "
+					   << prd(typeA[i - 1].scint_id, 0, 15) << " | "
+					   << prd(typeA[i - 1].gem_id, 0, 15) << " | "
+					   << prd(typeA[i - 1].gem_ch, 0, 15) << " | "
+					   << prd(typeA[i - 1].gem_scint, 0, 20) << " | "
+					   << prd(typeA[i - 1].gem_straw, 0, 20) << "\n";
+			while (typeA[j].straw_id == typeA[j - 1].straw_id && typeA[j].scint_id == typeA[j - 1].scint_id)
+			{
+				file_TypeA << std::string(15, ' ') << " | "
+						   << std::string(15, ' ') << " | "
+						   << prd(typeA[j].gem_id, 0, 15) << " | "
+						   << prd(typeA[j].gem_ch, 0, 15) << " | "
+						   << prd(typeA[j].gem_scint, 0, 20) << " | "
+						   << prd(typeA[j].gem_straw, 0, 20) << "\n";
+				j++;
+				counter++;
+			}
+			i += counter - 1;
+			file_TypeA << std::string(15 * 6 + 3 * 6 + 10, '-') << "\n";
+		}
+		else if (typeA[i].straw_id == typeA[i + 1].straw_id && typeA[i].scint_id == typeA[i + 1].scint_id)
+		{
+			continue;
+		}
+		else
+		{
+			file_TypeA << prd(typeA[i].straw_id, 0, 15) << " | "
+					   << prd(typeA[i].scint_id, 0, 15) << " | "
+					   << prd(typeA[i].gem_id, 0, 15) << " | "
+					   << prd(typeA[i].gem_ch, 0, 15) << " | "
+					   << prd(typeA[i].gem_scint, 0, 20) << " | "
+					   << prd(typeA[i].gem_straw, 0, 20) << "\n";
+			file_TypeA << std::string(15 * 6 + 3 * 6 + 10, '-') << "\n";
+		}
 	}
 
+	printf("%d Pseudo tracks for TypeA straws: %d with SCINT and %d without \n", typeA_all, typeA_wScint, typeA_woScint);
+
 	ofstream file_TypeB;
-	file_TypeB.open("TypeB.txt");
+	file_TypeB.open("TypeB_w_utt.txt");
 
 	file_TypeB << center("STRAW ID", 15) << " | "
 			   << center("SCINT ID", 15) << " | "
 			   << center("GEM3Y ID", 15) << " | "
 			   << center("GEM3Y CH", 15) << " | "
-			   << center("GEM - SCINT dT, ns", 15) << "\n";
-	file_TypeB << std::string(15 * 5 + 3 * 5, '-') << "\n";
+			   << center("GEM - SCINT dT, ns", 20) << " | "
+			   << center("GEM - STRAW dT, ns", 20) << "\n";
+	file_TypeB << std::string(15 * 6 + 3 * 6 + 10, '-') << "\n";
 
-	for (int i = 0; i < typeB.size(); i++)
+	for (int i = 1; i < typeB.size(); i++)
 	{
-		file_TypeB << prd(typeB[i].straw_id, 0, 15) << " | "
-				   << prd(typeB[i].scint_id, 0, 15) << " | "
-				   << prd(typeB[i].gem_id, 0, 15) 	<< " | "
-				   << prd(typeB[i].gem_ch, 0, 15) 	<< " | "
-				   << prd(typeB[i].gem_scint, 0, 15) << "\n";
+		if (typeB[i].scint_id != -1)
+			typeB_wScint++;
+		else
+			typeB_woScint++;
+		typeB_all++;
+
+		if (typeB[i].straw_id == typeB[i - 1].straw_id && typeB[i].scint_id == typeB[i - 1].scint_id)
+		{
+			int j = i;
+			int counter = 0;
+			file_TypeB << prd(typeB[i - 1].straw_id, 0, 15) << " | "
+					   << prd(typeB[i - 1].scint_id, 0, 15) << " | "
+					   << prd(typeB[i - 1].gem_id, 0, 15) << " | "
+					   << prd(typeB[i - 1].gem_ch, 0, 15) << " | "
+					   << prd(typeB[i - 1].gem_scint, 0, 20) << " | "
+					   << prd(typeB[i - 1].gem_straw, 0, 20) << "\n";
+			while (typeB[j].straw_id == typeB[j - 1].straw_id && typeB[j].scint_id == typeB[j - 1].scint_id)
+			{
+				file_TypeB << std::string(15, ' ') << " | "
+						   << std::string(15, ' ') << " | "
+						   << prd(typeB[j].gem_id, 0, 15) << " | "
+						   << prd(typeB[j].gem_ch, 0, 15) << " | "
+						   << prd(typeB[j].gem_scint, 0, 20) << " | "
+						   << prd(typeB[j].gem_straw, 0, 20) << "\n";
+				j++;
+				counter++;
+			}
+			i += counter - 1;
+			file_TypeB << std::string(15 * 6 + 3 * 6 + 10, '-') << "\n";
+		}
+		else if (typeB[i].straw_id == typeB[i + 1].straw_id && typeB[i].scint_id == typeB[i + 1].scint_id)
+		{
+			continue;
+		}
+		else
+		{
+			file_TypeB << prd(typeB[i].straw_id, 0, 15) << " | "
+					   << prd(typeB[i].scint_id, 0, 15) << " | "
+					   << prd(typeB[i].gem_id, 0, 15) << " | "
+					   << prd(typeB[i].gem_ch, 0, 15) << " | "
+					   << prd(typeB[i].gem_scint, 0, 20) << " | "
+					   << prd(typeB[i].gem_straw, 0, 20) << "\n";
+			file_TypeB << std::string(15 * 6 + 3 * 6 + 10, '-') << "\n";
+		}
 	}
+
+	printf("%d Pseudo tracks for typeB straws: %d with SCINT and %d without \n", typeB_all, typeB_wScint, typeB_woScint);
+
+	for (int i = 1; i < typeA.size(); i++)
+	{
+		if (typeA[i].straw_id == typeA[i - 1].straw_id && typeA[i].scint_id == typeA[i - 1].scint_id)
+		{
+			int j = i;
+			int counter = 0;
+			vector< pseudo_track > tempTrack;
+			tempTrack.push_back(typeA[j-1]);
+			while (typeA[j].straw_id == typeA[j - 1].straw_id && typeA[j].scint_id == typeA[j - 1].scint_id)
+			{
+				tempTrack.push_back(typeA[j]);
+				j++;
+				counter++;
+			}
+			typeAbasedTracks.push_back(tempTrack);
+			i += counter - 1;
+		}
+		else if (typeA[i].straw_id == typeA[i + 1].straw_id && typeA[i].scint_id == typeA[i + 1].scint_id)
+		{
+			continue;
+		}
+		else
+		{
+			vector< pseudo_track > tempTrack;
+			tempTrack.push_back(typeA[i]);
+			typeAbasedTracks.push_back(tempTrack);
+		}
+	}
+
+	for (int i = 0; i < typeAbasedTracks.size(); i++) 
+	{
+		double sum = 0;
+		double w_sum = 0;
+		for (int j = 0; j < typeAbasedTracks[i].size(); j++)
+		{
+			sum+= typeAbasedTracks[i][j].gem_ch * typeAbasedTracks[i][j].gem_weight;
+			w_sum += typeAbasedTracks[i][j].gem_weight;
+		}
+		double w_mean = (int)(sum / w_sum * 100.0) / 100.0 ;
+
+		printf("Straw id \t %d \t and w_mean \t %f \n", (int)typeAbasedTracks[i][0].straw_id, w_mean);
+		
+	}
+
+
 
 	gStyle->SetOptFit();
 
