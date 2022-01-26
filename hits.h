@@ -18,6 +18,9 @@
 class hits
 {
 public:
+    TString file = "1430_at_peak_full";
+    // TString file ="1606_at_threshold_full";
+    TString ending = ".root";
     TTree *fChain;  //! pointer to the analyzed TTree or TChain
     Int_t fCurrent; //! current Tree number in a TChain
 
@@ -74,14 +77,15 @@ public:
 // #ifdef hits_cxx 
 hits::hits(TTree *tree) : fChain(0)
 {
+    
     // if parameter tree is not specified (or zero), connect the file
     // used to generate this class and read the Tree.
     if (tree == 0)
     {
-        TFile *f = (TFile *)gROOT->GetListOfFiles()->FindObject("1522_at_peak_full.root");
+        TFile *f = (TFile *)gROOT->GetListOfFiles()->FindObject(file + ending);
         if (!f || !f->IsOpen())
         {
-            f = new TFile("1522_at_peak_full.root");
+            f = new TFile(file + ending);
         }
         f->GetObject("hits", tree);
     }

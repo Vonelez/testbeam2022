@@ -2,9 +2,9 @@
 #define toy_tracks_cxx
 
 #include "hits.h"
-#include "tqdm/tqdm.h"
 
 #include <TCanvas.h>
+#include <TString.h>
 #include <TH1.h>
 #include <TH2.h>
 #include <TStyle.h>
@@ -24,6 +24,7 @@ struct pseudo_track
 	double gem_weight;
 	long double gem_scint;
 	long double gem_straw;
+	long double sci_straw_deltaT;
 };
 
 std::string prd(const double x, const int decDigits, const int width)
@@ -53,28 +54,68 @@ void hits::Loop()
 {
 	TH2D *GemY_vs_StrawTypeA = new TH2D(
 		"GemY_vs_StrawTypeA", "GemY_vs_StrawTypeA; StrawTypeA, ch; GEM3 Y-plane, ch",
-		32, 0, 64, 128, 0, 256);
+		64, 0, 64, 256, 0, 256);
 
 	TH2D *GemY_vs_StrawTypeB = new TH2D(
 		"GemY_vs_StrawTypeB", "GemY_vs_StrawTypeB; StrawTypeB, ch; GEM3 Y-plane, ch",
-		32, 0, 64, 128, 0, 256);
+		64, 0, 64, 256, 0, 256);
 
-	double sigma_gem_straw = 21.69;
-	double mean_gem_straw = 28.75;
+	TH2D *RT_curve_GEM = new TH2D("RT_curve_GEM", "RT with T_0 from GEM and coord from GEM; R, mm; #Delta t, ns", 15, 0, 0.6, 250, 0., 0.);
+	TH2D *RT_curve_SCI = new TH2D("RT_curve_SCI", "RT with T_0 from SCI and coord from GEM; R, mm; #Delta t, ns", 15, 0, 0.6, 250, 0., 0.);
 
-	double sigma_gem_scint = 16.95;
-	double mean_gem_scint = -136.5;
+	TH2D *GEM1 = new TH2D(
+		"GEM1", "GEM1; CH; VMM", 32, 0, 64, 10, 0, 10);
+	TH2D *GEM2 = new TH2D(
+		"GEM2", "GEM2; CH; VMM", 32, 0, 64, 10, 0, 10);
+	TH2D *GEM3 = new TH2D(
+		"GEM3", "GEM3; CH; VMM", 32, 0, 64, 10, 0, 10);
 
+	TH1D *bcid = new TH1D("bcid", "bcid; BCID", 4200, 0, 4200);
+	TH1D *tdc = new TH1D("tdc", "tdc", 500, 0, 500);
+	TH1D *adc = new TH1D("adc", "adc", 1200, 0, 1200);
+	TH1D *spills = new TH1D("spills", "Num of spills; t, sec", 300, 0., 300.);
+
+	TH1D *gem_straw_timeRes_slice1 = new TH1D("gem_straw_timeRes_slice1", "GEM3 Y-plane CHs:32-42; #Delta t, ns", 250, -500, 500);
+	TH1D *gem_straw_timeRes_slice2 = new TH1D("gem_straw_timeRes_slice2", "GEM3 Y-plane CHs:82-92; #Delta t, ns", 250, -500, 500);
+	// 1505 -- 238.4; 19.7
+	// 1522 -- 31.1; 21.4
+	// 1606 -- 147.3; 55.8
+	// 1430 -- 238.9; 20.8
+	double sigma_gem_straw = 20.8;
+	double mean_gem_straw = 238.9;
+	// 1505 -- -193.8; 18.9
+	// 1522 -- -136.4; 17.1
+	// 1606 -- -136.6; 17.0
+	// 1430 -- -193.2; 19.1
+	double sigma_gem_scint = 19.1;
+	double mean_gem_scint = -193.2;
+	int scint_check = 8;
+
+	int vmm_check = 0;
+	int ch_check = 0;
+
+	if (scint_check == 8)
+	{
+		vmm_check = 8;
+		ch_check = 63;
+	}
+	else
+	{
+		vmm_check = 9;
+		ch_check = 0;
+	}
 	vector<pseudo_track> typeA;
 	vector<pseudo_track> typeB;
 
-	vector<vector< pseudo_track >> typeAbasedTracks;
+	vector<vector<pseudo_track> > typeAbasedTracks;
 
 	int gem_ch = 0;
 	double gem_weight = 0;
 
 	long double gem_scint_deltaT = 0;
 	long double gem_straw_deltaT = 0;
+	long double sci_straw_deltaT = 0;
+	long double sciT = 0;
 
 	if (fChain == 0)
 		return;
@@ -95,97 +136,151 @@ void hits::Loop()
 		{
 			if (!hits_over_threshold[i])
 			{
-				// if (hits_det[i] == 3 && hits_plane[i] == 1)
-				// {
-				// 	long double gemTime = (long double)hits_time[i];
-				// 	for (int j = 0; j < hits_; j++)
-				// 	{
-				// 		if (!hits_over_threshold[j])
-				// 			continue;
-				// 		if (i == j)
-				// 			continue;
-
-				// 		if (abs(gemTime - (long double)hits_time[j]) < 300)
-				// 			std::cout << "Det det " << (int)hits_det[j] << " det vmm (int)hits_vmm[j] " << (int)hits_vmm[j] << "\n";
-				// 		else
-				// 		{
-				// 			continue;
-				// 		}
-				// 	}
-				// }
-				
-				continue;
-			}
-			// else 
-			// {
-			// 	continue;
-			// }
-			if (hits_det[i] == 3 && hits_plane[i] == 1)
-			{
-				long double gemTime = (long double)hits_time[i];
-
-				if (hits_vmm[i] > 1)
+				// std::cout << "Det det " << (int)hits_det[i] << " det vmm (int)hits_vmm[i] " << (int)hits_vmm[i] << "\n";
+				if (hits_det[i] == 1 || hits_det[i] == 2 || hits_det[i] == 3)
 				{
-					hits_vmm[i] -= 2;
+					bcid->Fill((int)hits_bcid[i]);
+					tdc->Fill((int)hits_tdc[i]);
+					adc->Fill((int)hits_adc[i]);
+					if (hits_det[i] == 1)
+					{
+						GEM1->Fill((int)hits_ch[i], (int)hits_vmm[i]);
+					}
+					else if (hits_det[i] == 2)
+					{
+						GEM2->Fill((int)hits_ch[i], (int)hits_vmm[i]);
+					}
+					else
+					{
+						GEM3->Fill((int)hits_ch[i], (int)hits_vmm[i]);
+					}
 				}
 				else
 				{
-					hits_vmm[i] += 2;
+					continue;
 				}
-				gem_ch = 64 * (int)hits_vmm[i] + (int)hits_ch[i];
-				gem_weight = (int)hits_adc[i] / 1024.0;
-				int scinId = -1;
-
-				for (int j = 0; j < hits_; j++)
+			}
+			else
+			{
+				if (hits_det[i] == 3 && hits_plane[i] == 1)
 				{
-					if (!hits_over_threshold[j])
-						continue;
-					if (i == j)
-						continue;
 
-					if (abs(gemTime - (long double)hits_time[j]) > 300)
-						continue;
+					long double gemTime = (long double)hits_time[i];
 
-					if (hits_fec[j] == 2 && hits_vmm[j] == 9 && hits_ch[j] == 0)
+					if (hits_vmm[i] > 1)
 					{
-						if ((long double)hits_time[j] - gemTime > mean_gem_scint + 4 * sigma_gem_scint ||
-							(long double)hits_time[j] - gemTime < mean_gem_scint - 4 * sigma_gem_scint)
-						{
-							continue;
-						}
-						else
-						{
-							gem_scint_deltaT = gemTime - (long double)hits_time[j];
-							scinId = (int)hits_id[j];
-						}
+						hits_vmm[i] -= 2;
 					}
-
-					if (scinId == -1)
-						gem_scint_deltaT = -1.0;
-
-					if (hits_fec[j] == 2 && hits_vmm[j] == 10)
+					else
 					{
-						if (gemTime - (long double)hits_time[j] > mean_gem_straw + 4 * sigma_gem_straw ||
-							gemTime - (long double)hits_time[j] < mean_gem_straw - 4 * sigma_gem_straw)
-						{
+						hits_vmm[i] += 2;
+					}
+					gem_ch = 64 * (int)hits_vmm[i] + (int)hits_ch[i];
+					gem_weight = (int)hits_adc[i] / 1024.0;
+					int scinId = -1;
+
+					for (int j = 0; j < hits_; j++)
+					{
+						if (!hits_over_threshold[j])
 							continue;
-						}
-						else
+						if (i == j)
+							continue;
+
+						if (abs(gemTime - (long double)hits_time[j]) > 300)
+							continue;
+
+						if (hits_fec[j] == 2 && hits_vmm[j] == vmm_check && hits_ch[j] == ch_check)
 						{
-							gem_straw_deltaT = gemTime - (long double)hits_time[j];
-							if (hits_id[j] % 4 == 0)
+							if ((long double)hits_time[j] - gemTime > mean_gem_scint + 4 * sigma_gem_scint ||
+								(long double)hits_time[j] - gemTime < mean_gem_scint - 4 * sigma_gem_scint)
 							{
-								GemY_vs_StrawTypeA->Fill((int)hits_ch[j], gem_ch);
-								typeA.push_back({(int)hits_id[j], scinId, (int)hits_id[i], gem_ch, gem_weight, gem_scint_deltaT, gem_straw_deltaT});
-							}
-							else if (hits_id[j] % 4 == 3)
-							{
-								GemY_vs_StrawTypeB->Fill((int)hits_ch[j], gem_ch);
-								typeB.push_back({(int)hits_id[j], scinId, (int)hits_id[i], gem_ch, gem_weight, gem_scint_deltaT, gem_straw_deltaT});
+								continue;
 							}
 							else
 							{
+								gem_scint_deltaT = gemTime - (long double)hits_time[j];
+								sciT = (long double)hits_time[j];
+								scinId = (int)hits_id[j];
+								spills->Fill(sciT / 1e9);
+							}
+						}
+
+						if (scinId == -1)
+						{
+							gem_scint_deltaT = -1.0;
+							sci_straw_deltaT = -1.0;
+							sciT = -1.0;
+						}
+						if (hits_fec[j] == 2 && hits_vmm[j] == 10)
+						{
+							if (gemTime - (long double)hits_time[j] > mean_gem_straw + 4 * sigma_gem_straw ||
+								gemTime - (long double)hits_time[j] < mean_gem_straw - 4 * sigma_gem_straw)
+							{
 								continue;
+							}
+							else
+							{
+								gem_straw_deltaT = gemTime - (long double)hits_time[j];
+								sci_straw_deltaT = sciT - (long double)hits_time[j];
+
+								if (gem_ch > 32 && gem_ch < 42)
+								{
+									if (hits_ch[j] > 25 && hits_ch[j] < 30)
+									{
+										gem_straw_timeRes_slice1->Fill(gem_straw_deltaT);
+									}
+								}
+								if (gem_ch > 82 && gem_ch < 92)
+								{
+									if (hits_ch[j] > 42 && hits_ch[j] < 44)
+									{
+										gem_straw_timeRes_slice2->Fill(gem_straw_deltaT);
+									}
+								}
+								if (hits_ch[j] % 4 == 0)
+								{
+									int first_point_A = 14;
+									GemY_vs_StrawTypeA->Fill((int)hits_ch[j], gem_ch);
+									typeA.push_back({(int)hits_id[j], scinId, (int)hits_id[i], gem_ch, gem_weight, gem_scint_deltaT, gem_straw_deltaT, sci_straw_deltaT});
+									// if (gem_ch > first_point_A)
+									// {
+									// 	for (int k = 0; k < 15; k++)
+									// 	{
+									// 		if ((gem_ch - first_point_A) % 15 == k )
+									// 		{
+									// 			RT_curve_GEM->Fill(k * 0.4, gem_straw_deltaT);
+									// 			if (scinId > 0)
+									// 			{
+									// 				RT_curve_SCI->Fill(k * 0.4, sci_straw_deltaT);
+									// 			}
+									// 		}
+									// 	}
+									// }
+								}
+								else if (hits_ch[j] % 4 == 3)
+								{
+									GemY_vs_StrawTypeB->Fill((int)hits_ch[j], gem_ch);
+									typeB.push_back({(int)hits_id[j], scinId, (int)hits_id[i], gem_ch, gem_weight, gem_scint_deltaT, gem_straw_deltaT, sci_straw_deltaT});
+									int first_point_B = 4;
+									if (gem_ch > first_point_B)
+									{
+										for (int k = 0; k < 15; k++)
+										{
+											if ((gem_ch - first_point_B) % 15 == k)
+											{
+												RT_curve_GEM->Fill(k * 0.4, gem_straw_deltaT);
+												if (scinId > 0)
+												{
+													RT_curve_SCI->Fill(k * 0.4, sci_straw_deltaT);
+												}
+											}
+										}
+									}
+								}
+								else
+								{
+									continue;
+								}
 							}
 						}
 					}
@@ -198,7 +293,7 @@ void hits::Loop()
 	int typeB_all = 0, typeB_wScint = 0, typeB_woScint = 0;
 
 	ofstream file_TypeA;
-	file_TypeA.open("TypeA_w_utt.txt");
+	file_TypeA.open("TypeA_" + file + ".txt");
 
 	file_TypeA << center("STRAW ID", 15) << " | "
 			   << center("SCINT ID", 15) << " | "
@@ -259,7 +354,7 @@ void hits::Loop()
 	printf("%d Pseudo tracks for TypeA straws: %d with SCINT and %d without \n", typeA_all, typeA_wScint, typeA_woScint);
 
 	ofstream file_TypeB;
-	file_TypeB.open("TypeB_w_utt.txt");
+	file_TypeB.open("TypeB_" + file + ".txt");
 
 	file_TypeB << center("STRAW ID", 15) << " | "
 			   << center("SCINT ID", 15) << " | "
@@ -325,8 +420,8 @@ void hits::Loop()
 		{
 			int j = i;
 			int counter = 0;
-			vector< pseudo_track > tempTrack;
-			tempTrack.push_back(typeA[j-1]);
+			vector<pseudo_track> tempTrack;
+			tempTrack.push_back(typeA[j - 1]);
 			while (typeA[j].straw_id == typeA[j - 1].straw_id && typeA[j].scint_id == typeA[j - 1].scint_id)
 			{
 				tempTrack.push_back(typeA[j]);
@@ -342,33 +437,101 @@ void hits::Loop()
 		}
 		else
 		{
-			vector< pseudo_track > tempTrack;
+			vector<pseudo_track> tempTrack;
 			tempTrack.push_back(typeA[i]);
 			typeAbasedTracks.push_back(tempTrack);
 		}
 	}
 
-	for (int i = 0; i < typeAbasedTracks.size(); i++) 
+	for (int i = 0; i < typeAbasedTracks.size(); i++)
 	{
 		double sum = 0;
 		double w_sum = 0;
 		for (int j = 0; j < typeAbasedTracks[i].size(); j++)
 		{
-			sum+= typeAbasedTracks[i][j].gem_ch * typeAbasedTracks[i][j].gem_weight;
+			sum += typeAbasedTracks[i][j].gem_ch * typeAbasedTracks[i][j].gem_weight;
 			w_sum += typeAbasedTracks[i][j].gem_weight;
 		}
-		double w_mean = (int)(sum / w_sum * 100.0) / 100.0 ;
+		double w_mean = (int)(sum / w_sum * 100.0) / 100.0;
 
-		printf("Straw id \t %d \t and w_mean \t %f \n", (int)typeAbasedTracks[i][0].straw_id, w_mean);
-		
+		// int first_point_A = 14;
+
+		// if (w_mean > first_point_A)
+		// {
+		// 	for (int k = 0; k < 15; k++)
+		// 	{
+		// 		if (((int)w_mean - first_point_A) % 15 == k)
+		// 		{
+		// 			RT_curve_GEM->Fill(k * 0.4, gem_straw_deltaT);
+		// 			if (scinId > 0)
+		// 			{
+		// 				RT_curve_SCI->Fill(k * 0.4, sci_straw_deltaT);
+		// 			}
+		// 		}
+		// 	}
+		// }
 	}
 
+	// printf("Straw id \t %d \t and w_mean \t %f \n", (int)typeAbasedTracks[i][0].straw_id, w_mean);
+}
 
+gStyle->SetOptFit();
+gStyle->SetOptStat();
 
-	gStyle->SetOptFit();
+gem_straw_timeRes_slice1->Fit("gaus", "", "", 0., 0.);
+gem_straw_timeRes_slice2->Fit("gaus", "", "", 0., 0.);
 
-	TFile *out = new TFile("toy_track_1522_full_4sigma.root", "RECREATE");
-	GemY_vs_StrawTypeA->Write("GemY_vs_StrawTypeA");
-	GemY_vs_StrawTypeB->Write("GemY_vs_StrawTypeB");
-	out->Close();
+TCanvas *result_plots = new TCanvas("result_plots", "result_plots", 1440, 900);
+result_plots->Divide(2, 2);
+result_plots->cd(1);
+GemY_vs_StrawTypeA->Draw("COLZ");
+TLine l;
+l.SetLineColor(kRed);
+l.SetLineWidth(2);
+l.DrawLine(0, 32, 64, 32);
+l.DrawLine(0, 42, 64, 42);
+l.DrawLine(0, 82, 64, 82);
+l.DrawLine(0, 92, 64, 92);
+result_plots->cd(2);
+GemY_vs_StrawTypeB->Draw("COLZ");
+TLine k;
+k.SetLineColor(kRed);
+k.SetLineWidth(2);
+k.DrawLine(0, 32, 64, 32);
+k.DrawLine(0, 42, 64, 42);
+k.DrawLine(0, 82, 64, 82);
+k.DrawLine(0, 92, 64, 92);
+result_plots->cd(3);
+gem_straw_timeRes_slice1->Draw();
+result_plots->cd(4);
+gem_straw_timeRes_slice2->Draw();
+result_plots->SaveAs("resultPlots" + file + ".pdf");
+
+TCanvas *curve_plots = new TCanvas("curve_plots", "curve_plots", 1440, 900);
+curve_plots->Divide(2, 2);
+curve_plots->cd(1);
+GemY_vs_StrawTypeA->Draw("COLZ");
+curve_plots->cd(2);
+spills->Draw();
+curve_plots->cd(3);
+RT_curve_GEM->Draw("COLZ");
+curve_plots->cd(4);
+RT_curve_SCI->Draw("COLZ");
+curve_plots->SaveAs("curve" + file + ".pdf");
+
+TFile *out = new TFile("evBuildResults" + file + ending, "RECREATE");
+GemY_vs_StrawTypeA->Write("GemY_vs_StrawTypeA");
+GemY_vs_StrawTypeB->Write("GemY_vs_StrawTypeB");
+bcid->Write("bcid");
+tdc->Write("tdc");
+adc->Write("adc");
+GEM1->Write("GEM1");
+GEM2->Write("GEM2");
+GEM3->Write("GEM3");
+gem_straw_timeRes_slice1->Write("slice1");
+gem_straw_timeRes_slice2->Write("slice2");
+RT_curve_SCI->Write("RT_curve_SCI");
+RT_curve_GEM->Write("RT_curve_GEM");
+spills->Write("spills");
+out->Close();
 }

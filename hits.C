@@ -71,9 +71,9 @@ void hits::Loop()
 	// METHOD2: replace line
 	//    fChain->GetEntry(jentry);       //read all branches
 	// by  b_branchname->GetEntry(ientry); //read only this branch
-	double tStart = 6;
-	double tEnd = 142;
-	double spillEnd = 142;
+	double tStart = 3;
+	double tEnd = 22;
+	double spillEnd = 10;
 
 	if (fChain == 0)
 		return;
@@ -314,7 +314,7 @@ void hits::Loop()
 
 					if (hits_fec[j] == 2)
 					{
-						if (hits_vmm[j] == 9 && hits_ch[j] == 0)
+						if (hits_vmm[j] == 8 && hits_ch[j] == 63)
 							continue;
 						if (hits_vmm[j] == 10)
 						{
@@ -443,16 +443,16 @@ void hits::Loop()
 	three_plots->SaveAs("3pots_1522_full.png");
 	
 	deltaT_GEM3_trigger->Fit("gaus","","",-200,-80);
-	deltaT_straw_trigger->Fit("gaus","","",-150,50);
-	STRAWy_vs_GEMy3->Fit("gaus","","",-50,80);
+	deltaT_straw_trigger->Fit("gaus","","",50,150);
+	STRAWy_vs_GEMy3->Fit("gaus","","",200,260);
 
-	printf("----> GEM3Sci under peak \t %f \n", deltaT_GEM3_trigger->GetFunction("gaus")->Integral(0,80) / deltaT_GEM3_trigger->GetBinWidth(1));
-	printf("----> StrawSci under peak \t %f \n", deltaT_straw_trigger->GetFunction("gaus")->Integral(10,100) / deltaT_straw_trigger->GetBinWidth(1));
-	printf("----> GEM3straw under peak \t %f \n", STRAWy_vs_GEMy3->GetFunction("gaus")->Integral(-20,90) / STRAWy_vs_GEMy3->GetBinWidth(1));
+	printf("----> GEM3Sci under peak \t %f \n", deltaT_GEM3_trigger->GetFunction("gaus")->Integral(-200,-80) / deltaT_GEM3_trigger->GetBinWidth(1));
+	printf("----> StrawSci under peak \t %f \n", deltaT_straw_trigger->GetFunction("gaus")->Integral(50,150) / deltaT_straw_trigger->GetBinWidth(1));
+	printf("----> GEM3straw under peak \t %f \n", STRAWy_vs_GEMy3->GetFunction("gaus")->Integral(200,260) / STRAWy_vs_GEMy3->GetBinWidth(1));
 
 	gStyle->SetOptFit();
 
-	TFile *out = new TFile("cut_peak_1522_full.root", "RECREATE");
+	TFile *out = new TFile("cut_2024_at_peak.root", "RECREATE");
 	hitsHist->Write("hitsPerEntry");
 	ch_vs_time_trigger->Write("ch_vs_time_trigger");
 	ch_vs_time_GEM3_0->Write("ch_vs_time_GEM3_0");
