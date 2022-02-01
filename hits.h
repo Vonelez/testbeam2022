@@ -18,7 +18,7 @@
 class hits
 {
 public:
-    TString file = "1430_at_peak_full";
+    TString file = "1522_at_peak_full";
     // TString file ="1606_at_threshold_full";
     TString ending = ".root";
     TTree *fChain;  //! pointer to the analyzed TTree or TChain
@@ -68,6 +68,7 @@ public:
     virtual Long64_t LoadTree(Long64_t entry);
     virtual void Init(TTree *tree);
     virtual void Loop();
+    virtual int gemChConverter(int ch, int vmm);
     virtual Bool_t Notify();
     virtual void Show(Long64_t entry = -1);
 };

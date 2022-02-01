@@ -24,7 +24,7 @@ struct pseudo_track
 	double gem_weight;
 	long double gem_scint;
 	long double gem_straw;
-	long double sci_straw_deltaT;
+	long double sci_straw;
 };
 
 std::string prd(const double x, const int decDigits, const int width)
@@ -55,13 +55,19 @@ void hits::Loop()
 	TH2D *GemY_vs_StrawTypeA = new TH2D(
 		"GemY_vs_StrawTypeA", "GemY_vs_StrawTypeA; StrawTypeA, ch; GEM3 Y-plane, ch",
 		64, 0, 64, 256, 0, 256);
+	auto *GemY_vs_StrawTypeA_profile = new TProfile(
+		"GemY_vs_StrawTypeA_profile", "GemY_vs_StrawTypeA_profile; StrawTypeA, ch; GEM3 Y-plane, ch",
+		64, 0, 64, 0, 256);
 
 	TH2D *GemY_vs_StrawTypeB = new TH2D(
 		"GemY_vs_StrawTypeB", "GemY_vs_StrawTypeB; StrawTypeB, ch; GEM3 Y-plane, ch",
 		64, 0, 64, 256, 0, 256);
+	auto *GemY_vs_StrawTypeB_profile = new TProfile(
+		"GemY_vs_StrawTypeB_profile", "GemY_vs_StrawTypeB_profile; StrawTypeA, ch; GEM3 Y-plane, ch",
+		64, 0, 64, 0, 256);
 
-	TH2D *RT_curve_GEM = new TH2D("RT_curve_GEM", "RT with T_0 from GEM and coord from GEM; R, mm; #Delta t, ns", 15, 0, 0.6, 250, 0., 0.);
-	TH2D *RT_curve_SCI = new TH2D("RT_curve_SCI", "RT with T_0 from SCI and coord from GEM; R, mm; #Delta t, ns", 15, 0, 0.6, 250, 0., 0.);
+	TH2D *RT_curve_GEM = new TH2D("RT_curve_GEM", "RT with T_0 from GEM and coord from GEM; R, mm; #Delta t, ns", 15, 0, 6, 250, 0., 0.);
+	TH2D *RT_curve_SCI = new TH2D("RT_curve_SCI", "RT with T_0 from SCI and coord from GEM; R, mm; #Delta t, ns", 15, 0, 6, 250, 0., 0.);
 
 	TH2D *GEM1 = new TH2D(
 		"GEM1", "GEM1; CH; VMM", 32, 0, 64, 10, 0, 10);
@@ -73,7 +79,7 @@ void hits::Loop()
 	TH1D *bcid = new TH1D("bcid", "bcid; BCID", 4200, 0, 4200);
 	TH1D *tdc = new TH1D("tdc", "tdc", 500, 0, 500);
 	TH1D *adc = new TH1D("adc", "adc", 1200, 0, 1200);
-	TH1D *spills = new TH1D("spills", "Num of spills; t, sec", 300, 0., 300.);
+	TH1D *spills = new TH1D("spills", "Num of spills; t, sec", 300, 0., 900.);
 
 	TH1D *gem_straw_timeRes_slice1 = new TH1D("gem_straw_timeRes_slice1", "GEM3 Y-plane CHs:32-42; #Delta t, ns", 250, -500, 500);
 	TH1D *gem_straw_timeRes_slice2 = new TH1D("gem_straw_timeRes_slice2", "GEM3 Y-plane CHs:82-92; #Delta t, ns", 250, -500, 500);
@@ -81,15 +87,15 @@ void hits::Loop()
 	// 1522 -- 31.1; 21.4
 	// 1606 -- 147.3; 55.8
 	// 1430 -- 238.9; 20.8
-	double sigma_gem_straw = 20.8;
-	double mean_gem_straw = 238.9;
+	double sigma_gem_straw = 21.4;
+	double mean_gem_straw = 31.1;
 	// 1505 -- -193.8; 18.9
 	// 1522 -- -136.4; 17.1
 	// 1606 -- -136.6; 17.0
 	// 1430 -- -193.2; 19.1
-	double sigma_gem_scint = 19.1;
-	double mean_gem_scint = -193.2;
-	int scint_check = 8;
+	double sigma_gem_scint = 17.1;
+	double mean_gem_scint = -136.4;
+	int scint_check = 9;
 
 	int vmm_check = 0;
 	int ch_check = 0;
@@ -241,25 +247,28 @@ void hits::Loop()
 								{
 									int first_point_A = 14;
 									GemY_vs_StrawTypeA->Fill((int)hits_ch[j], gem_ch);
+									GemY_vs_StrawTypeA_profile->Fill((int)hits_ch[j], gem_ch);
 									typeA.push_back({(int)hits_id[j], scinId, (int)hits_id[i], gem_ch, gem_weight, gem_scint_deltaT, gem_straw_deltaT, sci_straw_deltaT});
-									// if (gem_ch > first_point_A)
-									// {
-									// 	for (int k = 0; k < 15; k++)
-									// 	{
-									// 		if ((gem_ch - first_point_A) % 15 == k )
-									// 		{
-									// 			RT_curve_GEM->Fill(k * 0.4, gem_straw_deltaT);
-									// 			if (scinId > 0)
-									// 			{
-									// 				RT_curve_SCI->Fill(k * 0.4, sci_straw_deltaT);
-									// 			}
-									// 		}
-									// 	}
-									// }
+									if (gem_ch > first_point_A)
+									{
+										for (int k = 0; k < 15; k++)
+										{
+											if ((gem_ch - first_point_A) % 15 == k )
+											{
+												RT_curve_GEM->Fill(k * 0.4, gem_straw_deltaT);
+												if (scinId > 0)
+												{
+													if (hits_ch[j] == 28 && gem_ch >= 30 && gem_ch <= 45)
+														RT_curve_SCI->Fill(k * 0.4, sci_straw_deltaT);
+												}
+											}
+										}
+									}
 								}
 								else if (hits_ch[j] % 4 == 3)
 								{
 									GemY_vs_StrawTypeB->Fill((int)hits_ch[j], gem_ch);
+									GemY_vs_StrawTypeB_profile->Fill((int)hits_ch[j], gem_ch);
 									typeB.push_back({(int)hits_id[j], scinId, (int)hits_id[i], gem_ch, gem_weight, gem_scint_deltaT, gem_straw_deltaT, sci_straw_deltaT});
 									int first_point_B = 4;
 									if (gem_ch > first_point_B)
@@ -271,7 +280,8 @@ void hits::Loop()
 												RT_curve_GEM->Fill(k * 0.4, gem_straw_deltaT);
 												if (scinId > 0)
 												{
-													RT_curve_SCI->Fill(k * 0.4, sci_straw_deltaT);
+													if (hits_ch[j] == 43 && gem_ch >= 80 && gem_ch <= 95)
+														RT_curve_SCI->Fill(k * 0.4, sci_straw_deltaT);
 												}
 											}
 										}
@@ -293,7 +303,7 @@ void hits::Loop()
 	int typeB_all = 0, typeB_wScint = 0, typeB_woScint = 0;
 
 	ofstream file_TypeA;
-	file_TypeA.open("TypeA_" + file + ".txt");
+	file_TypeA.open("txtFiles/TypeA_" + file + ".txt");
 
 	file_TypeA << center("STRAW ID", 15) << " | "
 			   << center("SCINT ID", 15) << " | "
@@ -354,7 +364,7 @@ void hits::Loop()
 	printf("%d Pseudo tracks for TypeA straws: %d with SCINT and %d without \n", typeA_all, typeA_wScint, typeA_woScint);
 
 	ofstream file_TypeB;
-	file_TypeB.open("TypeB_" + file + ".txt");
+	file_TypeB.open("txtFiles/TypeB_" + file + ".txt");
 
 	file_TypeB << center("STRAW ID", 15) << " | "
 			   << center("SCINT ID", 15) << " | "
@@ -455,17 +465,17 @@ void hits::Loop()
 		double w_mean = (int)(sum / w_sum * 100.0) / 100.0;
 
 		// int first_point_A = 14;
-
-		// if (w_mean > first_point_A)
+		// int gCh = w_mean;
+		// if (gCh > first_point_A)
 		// {
 		// 	for (int k = 0; k < 15; k++)
 		// 	{
-		// 		if (((int)w_mean - first_point_A) % 15 == k)
+		// 		if ((gCh - first_point_A) % 15 == k)
 		// 		{
-		// 			RT_curve_GEM->Fill(k * 0.4, gem_straw_deltaT);
-		// 			if (scinId > 0)
+		// 			RT_curve_GEM->Fill((k * 1.0 + w_mean - gCh) * 0.4, typeAbasedTracks[i][0].gem_straw);
+		// 			if (typeAbasedTracks[i][0].scint_id > 0)
 		// 			{
-		// 				RT_curve_SCI->Fill(k * 0.4, sci_straw_deltaT);
+		// 				RT_curve_SCI->Fill((k * 1.0 + w_mean - gCh) * 0.4, typeAbasedTracks[i][0].sci_straw);
 		// 			}
 		// 		}
 		// 	}
@@ -473,65 +483,66 @@ void hits::Loop()
 	}
 
 	// printf("Straw id \t %d \t and w_mean \t %f \n", (int)typeAbasedTracks[i][0].straw_id, w_mean);
-}
 
-gStyle->SetOptFit();
-gStyle->SetOptStat();
+	gStyle->SetOptFit();
+	gStyle->SetOptStat();
 
-gem_straw_timeRes_slice1->Fit("gaus", "", "", 0., 0.);
-gem_straw_timeRes_slice2->Fit("gaus", "", "", 0., 0.);
+	gem_straw_timeRes_slice1->Fit("gaus", "", "", 0., 0.);
+	gem_straw_timeRes_slice2->Fit("gaus", "", "", 0., 0.);
 
-TCanvas *result_plots = new TCanvas("result_plots", "result_plots", 1440, 900);
-result_plots->Divide(2, 2);
-result_plots->cd(1);
-GemY_vs_StrawTypeA->Draw("COLZ");
-TLine l;
-l.SetLineColor(kRed);
-l.SetLineWidth(2);
-l.DrawLine(0, 32, 64, 32);
-l.DrawLine(0, 42, 64, 42);
-l.DrawLine(0, 82, 64, 82);
-l.DrawLine(0, 92, 64, 92);
-result_plots->cd(2);
-GemY_vs_StrawTypeB->Draw("COLZ");
-TLine k;
-k.SetLineColor(kRed);
-k.SetLineWidth(2);
-k.DrawLine(0, 32, 64, 32);
-k.DrawLine(0, 42, 64, 42);
-k.DrawLine(0, 82, 64, 82);
-k.DrawLine(0, 92, 64, 92);
-result_plots->cd(3);
-gem_straw_timeRes_slice1->Draw();
-result_plots->cd(4);
-gem_straw_timeRes_slice2->Draw();
-result_plots->SaveAs("resultPlots" + file + ".pdf");
+	TCanvas *result_plots = new TCanvas("result_plots", "result_plots", 1440, 900);
+	result_plots->Divide(2, 2);
+	result_plots->cd(1);
+	GemY_vs_StrawTypeA->Draw("COLZ");
+	TLine l;
+	l.SetLineColor(kRed);
+	l.SetLineWidth(2);
+	l.DrawLine(0, 32, 64, 32);
+	l.DrawLine(0, 42, 64, 42);
+	l.DrawLine(0, 82, 64, 82);
+	l.DrawLine(0, 92, 64, 92);
+	result_plots->cd(2);
+	GemY_vs_StrawTypeB->Draw("COLZ");
+	TLine k;
+	k.SetLineColor(kRed);
+	k.SetLineWidth(2);
+	k.DrawLine(0, 32, 64, 32);
+	k.DrawLine(0, 42, 64, 42);
+	k.DrawLine(0, 82, 64, 82);
+	k.DrawLine(0, 92, 64, 92);
+	result_plots->cd(3);
+	gem_straw_timeRes_slice1->Draw();
+	result_plots->cd(4);
+	gem_straw_timeRes_slice2->Draw();
+	result_plots->SaveAs("img/resultPlots" + file + ".pdf");
 
-TCanvas *curve_plots = new TCanvas("curve_plots", "curve_plots", 1440, 900);
-curve_plots->Divide(2, 2);
-curve_plots->cd(1);
-GemY_vs_StrawTypeA->Draw("COLZ");
-curve_plots->cd(2);
-spills->Draw();
-curve_plots->cd(3);
-RT_curve_GEM->Draw("COLZ");
-curve_plots->cd(4);
-RT_curve_SCI->Draw("COLZ");
-curve_plots->SaveAs("curve" + file + ".pdf");
+	TCanvas *curve_plots = new TCanvas("curve_plots", "curve_plots", 1440, 900);
+	curve_plots->Divide(2, 2);
+	curve_plots->cd(1);
+	GemY_vs_StrawTypeA->Draw("COLZ");
+	curve_plots->cd(2);
+	spills->Draw();
+	curve_plots->cd(3);
+	RT_curve_GEM->Draw("COLZ");
+	curve_plots->cd(4);
+	RT_curve_SCI->Draw("COLZ");
+	curve_plots->SaveAs("img/curve" + file + ".pdf");
 
-TFile *out = new TFile("evBuildResults" + file + ending, "RECREATE");
-GemY_vs_StrawTypeA->Write("GemY_vs_StrawTypeA");
-GemY_vs_StrawTypeB->Write("GemY_vs_StrawTypeB");
-bcid->Write("bcid");
-tdc->Write("tdc");
-adc->Write("adc");
-GEM1->Write("GEM1");
-GEM2->Write("GEM2");
-GEM3->Write("GEM3");
-gem_straw_timeRes_slice1->Write("slice1");
-gem_straw_timeRes_slice2->Write("slice2");
-RT_curve_SCI->Write("RT_curve_SCI");
-RT_curve_GEM->Write("RT_curve_GEM");
-spills->Write("spills");
-out->Close();
+	TFile *out = new TFile("out/evBuildResults" + file + ending, "RECREATE");
+	GemY_vs_StrawTypeA->Write("GemY_vs_StrawTypeA");
+	GemY_vs_StrawTypeB->Write("GemY_vs_StrawTypeB");
+	bcid->Write("bcid");
+	tdc->Write("tdc");
+	adc->Write("adc");
+	GEM1->Write("GEM1");
+	GEM2->Write("GEM2");
+	GEM3->Write("GEM3");
+	gem_straw_timeRes_slice1->Write("slice1");
+	gem_straw_timeRes_slice2->Write("slice2");
+	RT_curve_SCI->Write("RT_curve_SCI");
+	RT_curve_GEM->Write("RT_curve_GEM");
+	spills->Write("spills");
+	GemY_vs_StrawTypeA_profile->Write("GemY_vs_StrawTypeA_profile");
+	GemY_vs_StrawTypeB_profile->Write("GemY_vs_StrawTypeB_profile");
+	out->Close();
 }

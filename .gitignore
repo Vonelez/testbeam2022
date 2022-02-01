@@ -1,5 +1,9 @@
 .vscode
-tqdm
+img
+slides
+txtFiles
+out
+legacy_code
 155
 *.key
 *.pdf
