@@ -18,8 +18,8 @@
 class hits
 {
 public:
-    TString file = "1522_at_peak_full";
-    // TString file ="1606_at_threshold_full";
+    // TString file = "1522_at_peak_full";
+    TString file ="1606_at_threshold_full";
     TString ending = ".root";
     TTree *fChain;  //! pointer to the analyzed TTree or TChain
     Int_t fCurrent; //! current Tree number in a TChain

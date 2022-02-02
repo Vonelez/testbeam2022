@@ -9,6 +9,7 @@
 #include <TH2.h>
 #include <TStyle.h>
 #include <vector>
+#include <array>
 
 #include <algorithm>
 #include <fstream>
@@ -25,6 +26,16 @@ struct pseudo_track
     long double gem_scint;
     long double gem_straw;
     long double sci_straw;
+};
+
+struct track
+{
+    char straw_type;
+    int straw_ch;
+    double gem_wm_ch; //the weighted mean ch of cluster in GEM
+    bool scintillator;
+    long double strawT;
+    long double sciT;
 };
 
 int hits::gemChConverter(int ch, int vmm)
@@ -44,13 +55,17 @@ int hits::gemChConverter(int ch, int vmm)
 
 void hits::Loop()
 {
-    double meanStrawGem = 31.1;
-    double sigmaStrawGem = 21.4;
+    // 1522 -- 31.1; 21.4
+	// 1606 -- 147.3; 55.8
+    double meanStrawGem = 147.3;
+    double sigmaStrawGem = 55.8;
 
-    double meanStrawScint = -103.4;
-    double sigmaStrawScint = 14.2;
+    // 1522 -- -103.4; 14.2
+	// 1606 -- 11.0; 52.5
+    double meanStrawScint = 11.0;
+    double sigmaStrawScint = 52.5;
 
-    bool jinrScint = true; // vmm8 ch63 = true
+    bool jinrScint = false; // vmm8 ch63 = true
 
     int vmm_check = 0;
     int ch_check = 0;
@@ -58,6 +73,7 @@ void hits::Loop()
     int strawCh = 0;
     long double strawT = 0;
     long double gemT = 0;
+    long double sciT = 0;
     int gemCh = 0;
 
     if (jinrScint)
@@ -71,8 +87,10 @@ void hits::Loop()
         ch_check = 0;
     }
 
-    vector<pseudo_track> typeA;
-    vector<pseudo_track> typeB;
+    vector<track> tracks;
+
+    // auto *gem_strawA_correlarion = new TH2D("h2", "h2; StrawTypeA, ch; GEM3 Y-plane, ch", 64, 0, 64, 512, 0, 256);
+    auto *RT_curve_SCI = new TH2D("RT_curve_SCI", "RT with t_{0} from SCI and coord from GEM; R, mm; #Delta t, ns", 60, 0, 6, 500, -200., 300.);
 
     if (fChain == 0)
         return;
@@ -116,8 +134,8 @@ void hits::Loop()
                 gemT = 0;
                 gemCh = 0;
 
-                vector <int> GemClusterA;
-                vector <int> GemClusterB;
+                vector <std::array<int, 2>> GemClusterA;
+                vector <std::array<int, 2>> GemClusterB;
 
                 for (int j = 0; j < hits_; j++)
                 {
@@ -143,39 +161,139 @@ void hits::Loop()
                             int gemCh = gemChConverter((int)hits_ch[j], (int)hits_vmm[j]);
                             if (TypeA)
                             {
-                                if (abs(strawCh * 2.62 - 4.83 - gemCh) > 20)
-                                //p0                        =     -4.83457   +/-   1.40857     
-                                //p1                        =      2.62137   +/-   0.0282988 
+                                if (abs(strawCh * 2.81 - 15.01 - gemCh) > 30)
+                                // p0                        =     -15.0052   +/-   2.39285     
+                                // p1                        =      2.80836   +/-   0.0455132
                                     continue;
                                 else
                                 {
-                                    GemCluster.push_back(gemCh);
+                                    array<int, 2> pair = { {gemCh, (int)hits_adc[j]} };
+                                    GemClusterA.push_back(pair);
                                 } 
                                 
                             }
                             else if (TypeB)
-                            {   
-                                continue;
-                                //p0                        =    -0.631874   +/-   1.54827     
-                                //p1                        =       2.4745   +/-   0.0293748 
+                            {   if (abs(strawCh * 2.81 + 3.72 - gemCh) > 30)
+                                // p0                        =      3.72347   +/-   2.33071     
+                                // p1                        =      2.39773   +/-   0.0427727  
+                                    continue;
+                                else
+                                {
+                                    array<int, 2> pair = { {gemCh, (int)hits_adc[j]} };
+                                    GemClusterB.push_back(pair);
+                                } 
                             }
                             else
                                 continue;
-
                         }
                     }
                 }
-                if (GemCluster.size() > 0)
+                char strawType;
+                double gem_wmCh;
+                if (GemClusterA.size() > 0)
                 {
-                    std::cout << "-----> STARW CH \t" << strawCh << std::endl;
-                    for (int l = 0; l < GemCluster.size(); l++)
+                    // std::cout << "-----> STARW CH \t" << strawCh << std::endl;
+                    double sum = 0;
+		            double w_sum = 0;
+                    for (int l = 0; l < GemClusterA.size(); l++)
                     {
-                        std::cout << "--> GEM CH \t" << GemCluster[l] << std::endl;
+                        // std::cout << "--> GEM CH \t" << GemClusterA[l][0] << std::endl;
+                        double weight = GemClusterA[l][1] / 1024.0;
+                        sum += GemClusterA[l][0] * weight;
+			            w_sum += weight;
+                    }
+                    gem_wmCh = (int)(sum / w_sum * 100.0) / 100.0;
+                    // std::cout << "-> GEM AV \t" << (int)(sum / w_sum * 100.0) / 100.0 << std::endl;
+                    strawType = 'A';
+                    // gem_strawA_correlarion->Fill(strawCh, gem_wmCh);
+                    // gem_strawA_correlarion->Draw("COLZ");
+                }
+                else if (GemClusterB.size() > 0)
+                {
+                    double sum = 0;
+		            double w_sum = 0;
+                    for (int l = 0; l < GemClusterB.size(); l++)
+                    {
+                        double weight = GemClusterB[l][1] / 1024.0;
+                        sum += GemClusterB[l][0] * weight;
+			            w_sum += weight;
+                    }
+                    gem_wmCh = (int)(sum / w_sum * 100.0) / 100.0;
+                    strawType = 'B';
+                }
+                else 
+                    continue;
+
+                sciT = 0;
+                int sciCount = 0;
+
+                for (int j = 0; j < hits_; j++)
+                {
+                    if (!hits_over_threshold[j])
+                        continue;
+
+                    if (i == j)
+                        continue;
+
+                    if (abs(strawT - (long double)hits_time[j]) > 300)
+                        continue;
+
+                    if (hits_vmm[j] == vmm_check && hits_ch[j] == ch_check)
+                    {
+                        if ((long double)hits_time[j] - strawT > meanStrawScint + 4 * sigmaStrawScint ||
+                            (long double)hits_time[j] - strawT < meanStrawScint - 4 * sigmaStrawScint)
+                        {
+                            continue;
+                        }
+                        else
+                        {
+                            sciCount++;
+                            sciT += (long double)hits_time[j];
+                        }
                     }
                 }
-            }
+                if (sciCount > 0)
+                {
+                    sciT /= sciCount;
+                    tracks.push_back({strawType, strawCh, gem_wmCh, true, strawT, sciT});
+
+                }
+                else
+                    tracks.push_back({strawType, strawCh, gem_wmCh, false, strawT, -1.0});
+            }   
             else
                 continue;
         }
     }
+
+    std::cout << "\t -----> " << tracks.size() << "\n";
+    int countA = 0;
+    int countB = 0;
+    for (int i = 0; i < tracks.size(); i++)
+    {
+        track tmpTrack = tracks[i];
+        if (!tmpTrack.scintillator)
+            continue;
+        double hitCoord = 0;
+        double u = 0;
+        if (tmpTrack.straw_type == 'A')
+        {
+            countA++;
+            u = (((int)tmpTrack.gem_wm_ch - 14) % 15) * 1.0;
+        }
+        else
+        {
+            countB++;
+            u = (((int)tmpTrack.gem_wm_ch - 4) % 15) * 1.0;
+        }
+        if (hitCoord < 0 || hitCoord > 6)
+            continue;
+        hitCoord = (u + tmpTrack.gem_wm_ch - (int)tmpTrack.gem_wm_ch) * 0.4;
+        RT_curve_SCI->Fill(hitCoord, tmpTrack.strawT - tmpTrack.sciT);
+    }
+
+    std::cout << "Type A with SCINT " << countA << "\n";
+    std::cout << "Type B with SCINT " << countB << "\n";
+    RT_curve_SCI->Draw("COLZ");
+
 }
