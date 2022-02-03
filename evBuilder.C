@@ -72,13 +72,13 @@ void hits::Loop()
 {
     // 1522 -- 31.1; 21.4
 	// 1606 -- 147.3; 55.8
-    double meanStrawGem = 31.1;
-    double sigmaStrawGem = 21.4;
+    double meanStrawGem = 147.3;
+    double sigmaStrawGem = 55.8;
 
     // 1522 -- -103.4; 14.2
 	// 1606 -- 11.0; 52.5
-    double meanStrawScint = -103.4;
-    double sigmaStrawScint = 14.2;
+    double meanStrawScint = 11.0;
+    double sigmaStrawScint = 52.5;
 
     bool jinrScint = false; // vmm8 ch63 = true
 
@@ -110,6 +110,9 @@ void hits::Loop()
     auto *gem_strawB_correlarion_all = new TH2D("gem_strawB_correlarion_all", "gem_strawB_correlarion_all; StrawTypeB, ch; GEM3 Y-plane, ch", 64, 0, 64, 256, 0, 256);
     auto *gem_strawA_correlarion_sci_only = new TH2D("gem_strawA_correlarion_sci_only", "gem_strawA_correlarion_sci_only; StrawTypeA, ch; GEM3 Y-plane, ch", 64, 0, 64, 256, 0, 256);
     auto *gem_strawB_correlarion_sci_only = new TH2D("gem_strawB_correlarion_sci_only", "gem_strawB_correlarion_sci_only; StrawTypeB, ch; GEM3 Y-plane, ch", 64, 0, 64, 256, 0, 256);
+
+    auto *two_det_trackA_rate = new TH1D("two_det_trackA_rate", "two_det_trackA_rate; spills, sec; N", 900, 0, 900);
+    auto *two_det_trackB_rate = new TH1D("two_det_trackB_rate", "two_det_trackB_rate; spills, sec; N", 900, 0, 900);
 
     auto *three_det_trackA_rate = new TH1D("three_det_trackA_rate", "three_det_trackA_rate; spills, sec; N", 900, 0, 900);
     auto *three_det_trackB_rate = new TH1D("three_det_trackB_rate", "three_det_trackB_rate; spills, sec; N", 900, 0, 900);
@@ -316,7 +319,13 @@ void hits::Loop()
             gem_strawB_correlarion_all->Fill(tmpTrack.straw_ch, tmpTrack.gem_wm_ch);
         }
         if (!tmpTrack.scintillator)
+        {   
+            if (tmpTrack.straw_type == 'A')
+                two_det_trackA_rate->Fill(tmpTrack.strawT / 1e9);
+            else
+                two_det_trackB_rate->Fill(tmpTrack.strawT / 1e9);
             continue;
+        }
         double hitCoord = 0;
         double u = 0;
         int v = (int)tmpTrack.gem_wm_ch;
@@ -398,8 +407,38 @@ void hits::Loop()
     gem_strawB_correlarion_all->Write("gem_strawB_correlarion_all");
     gem_strawA_correlarion_sci_only->Write("gem_strawA_correlarion_sci_only");
     gem_strawB_correlarion_sci_only->Write("gem_strawB_correlarion_sci_only");
+    two_det_trackA_rate->Write("two_det_trackA_rate");
+    two_det_trackB_rate->Write("two_det_trackB_rate");
     three_det_trackA_rate->Write("three_det_trackA_rate");
     three_det_trackB_rate->Write("three_det_trackB_rate");
     RT_curve_SCI->Write("RT_curve_SCI");
     out->Close();
+
+    TCanvas *c1 = new TCanvas("c1", "Type-A straws", 1440, 900);
+	c1->Divide(2, 2);
+	c1->cd(1);
+    gem_strawA_correlarion_all->Draw();
+    c1->cd(2);
+    gem_strawA_correlarion_sci_only->Draw();
+    c1->cd(3);
+    gPad->SetLogy();
+    two_det_trackA_rate->Draw();
+    c1->cd(4);
+    gPad->SetLogy();
+    three_det_trackA_rate->Draw();
+	c1->SaveAs("img/TypeA_evB_" + file + ".pdf");
+
+    TCanvas *c2 = new TCanvas("c2", "Type-B straws", 1440, 900);
+	c2->Divide(2, 2);
+	c2->cd(1);
+    gem_strawB_correlarion_all->Draw();
+    c2->cd(2);
+    gem_strawB_correlarion_sci_only->Draw();
+    c2->cd(3);
+    gPad->SetLogy();
+    two_det_trackB_rate->Draw();
+    c2->cd(4);
+    gPad->SetLogy();
+    three_det_trackB_rate->Draw();
+	c2->SaveAs("img/TypeB_evB_" + file + ".pdf");
 }
