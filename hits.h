@@ -18,8 +18,10 @@
 class hits
 {
 public:
-    // TString file = "1505_at_peak_full";
-    TString file ="1606_at_threshold_full";
+    // TString file = "107_at_peak_full";
+    // TString file ="1543_at_threshold_full";
+    // TString file = "200ns_40MHz_1700V";
+    TString file = "Ru106_40MHz_stcr_1550V";
     TString ending = ".root";
     TTree *fChain;  //! pointer to the analyzed TTree or TChain
     Int_t fCurrent; //! current Tree number in a TChain
@@ -27,20 +29,23 @@ public:
     // 1505 -- 238.4; 19.7
     // 1522 -- 31.1; 21.4
 	// 1606 -- 147.3; 55.8
-    double meanStrawGem = 147.3;
-    double sigmaStrawGem = 55.8;
+    // 1543 -- 147.2; 55.4
+    double meanStrawGem = 147.2;
+    double sigmaStrawGem = 55.4;
 
     // 1505 -- 49.5; 15.7
     // 1522 -- -103.4; 14.2
 	// 1606 -- 11.0; 52.5
-    double meanStrawScint = 11.0;
-    double sigmaStrawScint = 52.5;
+    // 1543 -- 14.60; 54.5
+    double meanStrawScint = 14.60;
+    double sigmaStrawScint = 54.5;
 
     // 1505 -- -193.8; 18.9
     // 1522 -- -136.4; 17.1
     // 1606 -- -136.6; 17.0
-    double meanGemScint = -136.6;
-    double sigmaGemScint = 17.0;
+    // 1543 -- -136.1; 17.5
+    double meanGemScint = -136.1;
+    double sigmaGemScint = 17.5;
 
 
 

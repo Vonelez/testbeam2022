@@ -56,6 +56,25 @@ struct track
     int sci_hit_id;
 };
 
+struct strawAB_plusSci_withGem
+{
+    int straw_ch_a;
+    int strawVmm_a;
+    int straw_hit_id_a;
+    long double strawT_a;
+    int straw_ch_b;
+    int strawVmm_b;
+    int straw_hit_id_b;
+    long double strawT_b;
+    bool up;
+    vector<array<int, 3> > gemCluster;
+    double gem_wm_ch;
+    long double gem_av_T; 
+    bool scintillator;
+    long double sciT;
+    int sci_hit_id;
+};
+
 int hits::gemChConverter(int ch, int vmm)
 {
     int out_vmm = 0;
@@ -189,12 +208,15 @@ void hits::Loop()
     }
 
     vector<track> tracks;
+    vector<strawAB_plusSci_withGem> abCorrVect;
 
     auto *h_adc_straw = new TH1D("h_adc_straw", "h_adc_straw", 1200, 0, 1200);
 
     auto *deltaTstrawAvsB = new TH1D("deltaTstrawAvsB", "deltaTstrawAvsB",1000, -500, 500);
     auto *deltaTstrawAvsB_15ns = new TH1D("deltaTstrawAvsB_15ns", "deltaTstrawAvsB_15ns", 1000, -500, 500);
     auto *strawAstrawB_correlarion = new TH2D("strawAstrawB_correlarion", "strawAstrawB_correlarion; StrawTypeA, ch; StrawTypeB, ch", 128, 0, 128, 128, 0, 128);
+    auto *bananaPlotUp = new TH2D("bananaPlotUp", "bananaPlotUp; StrawTypeA #Delta t, ns; StrawTypeB #Delta t, ns", 400, -200, 200, 400, -200, 200);
+    auto *bananaPlotDown = new TH2D("bananaPlotDown", "bananaPlotDown; StrawTypeA #Delta t, ns; StrawTypeB #Delta t, ns", 400, -200, 200, 400, -200, 200);
 
 
     auto *h1_3hit = new TH1D("h1_3hit", "3 detectors track; #Deltat, ns; N", 1000, -1000, 1000);
@@ -207,6 +229,8 @@ void hits::Loop()
     auto *gem_strawB_correlarion_all = new TH2D("gem_strawB_correlarion_all", "gem_strawB_correlarion_all; StrawTypeB, ch; GEM3 Y-plane, ch", 128, 0, 128, 256, 0, 256);
     auto *gem_strawA_correlarion_sci_only = new TH2D("gem_strawA_correlarion_sci_only", "gem_strawA_correlarion_sci_only; StrawTypeA, ch; GEM3 Y-plane, ch", 128, 0, 128, 256, 0, 256);
     auto *gem_strawB_correlarion_sci_only = new TH2D("gem_strawB_correlarion_sci_only", "gem_strawB_correlarion_sci_only; StrawTypeB, ch; GEM3 Y-plane, ch", 128, 0, 128, 256, 0, 256);
+    auto *gem_strawAB_correlarion_sci_only = new TH2D("gem_strawAB_correlarion_sci_only", "gem_strawAB_correlarion_sci_only; Straw, ch; GEM3 Y-plane, ch", 128, 0, 128, 256, 0, 256);
+
 
     auto *two_det_trackA_rate = new TH1D("two_det_trackA_rate", "two_det_trackA_rate; spills, sec; N", 900, 0, 900);
     auto *two_det_trackB_rate = new TH1D("two_det_trackB_rate", "two_det_trackB_rate; spills, sec; N", 900, 0, 900);
@@ -239,8 +263,8 @@ void hits::Loop()
             bool TypeA = false;
             bool TypeB = false;
 
-            if ((long double)hits_time[i] / 1e9 > 200)
-                continue;
+            // if ((long double)hits_time[i] / 1e9 > 200)
+                // continue;
 
             if (hits_fec[i] == 2 && (hits_vmm[i] == 10 || hits_vmm[i] == 11))
             {
@@ -289,33 +313,6 @@ void hits::Loop()
                     if (abs(strawT - (long double)hits_time[j]) > 300)
                         continue;
 
-                    if (hits_fec[j] == 2 && (hits_vmm[j] == 10 || hits_vmm[j] == 11))
-                    {
-                        if (TypeA)
-                        {
-                            int ch = 0;
-                            if (hits_vmm[j] == 11)
-                            {
-                                ch = (int)hits_ch[j] + 64;
-                            }
-                            else
-                            {
-                                ch = (int)hits_ch[j];
-                            }
-                            if (hits_ch[j] % 4 == 3 && abs(strawCh - ch) < 10)
-                            {
-                                if (abs(strawCh - ch) < 4)
-                                {
-                                    strawAstrawB_correlarion->Fill(strawCh, ch);
-                                    deltaTstrawAvsB_15ns->Fill(strawT - (long double)hits_time[j]);
-                                }  
-
-                                deltaTstrawAvsB->Fill(strawT - (long double)hits_time[j]);
-                            }
-                        }
-                    }
-                    
-
                     if (hits_det[j] == 3 && hits_plane[j] == 1)
                     {
                         gemT = (long double)hits_time[j];
@@ -356,6 +353,14 @@ void hits::Loop()
                 }
 
                 double gem_wmCh;
+                
+                int straw_ch_b_temp;
+                int strawVmm_b_temp;
+                int straw_hit_id_b_temp;
+                long double strawT_b_temp;
+                bool up_temp;
+                double minTime;
+
                 if (GemClusterA.size() > 0)
                 {
                     double sum = 0;
@@ -368,6 +373,66 @@ void hits::Loop()
                     }
                     gem_wmCh = sum / w_sum;
                     gemAvT /= GemClusterA.size();
+
+                    // loking for typeB straw for existing typeA straw
+                    minTime = 300;
+                    straw_ch_b_temp = 0;
+                    strawVmm_b_temp = 0;
+                    straw_hit_id_b_temp = 0;
+                    strawT_b_temp = 0;
+                    up_temp = false;
+                    for (int j = 0; j < hits_; j++)
+                    {
+                        if (!hits_over_threshold[j])
+                            continue;
+
+                        if (i == j)
+                            continue;
+
+                        if (abs(strawT - (long double)hits_time[j]) > 300)
+                            continue;
+
+                        if (hits_fec[j] == 2 && (hits_vmm[j] == 10 || hits_vmm[j] == 11))
+                        {
+                            int ch = 0;
+                            if (hits_vmm[j] == 11)
+                            {
+                                ch = (int)hits_ch[j] + 64;
+                            }
+                            else
+                            {
+                                ch = (int)hits_ch[j];
+                            }
+                            if (hits_ch[j] % 4 == 3 && abs(strawCh - ch) < 12)
+                            {
+                                deltaTstrawAvsB->Fill(strawT - (long double)hits_time[j]);
+                                if (abs(strawCh - ch) < 12)
+                                {
+                                    strawAstrawB_correlarion->Fill(strawCh, ch);
+                                    deltaTstrawAvsB_15ns->Fill(strawT - (long double)hits_time[j]);
+
+                                    if (abs(strawT - (long double)hits_time[j]) < minTime)
+                                    {
+                                        minTime = abs(strawT - (long double)hits_time[j]);
+                                        straw_ch_b_temp = ch;
+                                        strawVmm_b_temp = (int)hits_vmm[j];
+                                        straw_hit_id_b_temp = (int)hits_id[j];
+                                        strawT_b_temp = (long double)hits_time[j];
+                                        
+                                        if (strawCh - ch < 0)
+                                        {
+                                            up_temp = true;
+                                        }
+                                        else
+                                        {
+                                            up_temp = false;
+                                        }
+                                    }
+                                }
+
+                            }
+                        }
+                    }
                 }
                 else if (GemClusterB.size() > 0)
                 {
@@ -384,6 +449,8 @@ void hits::Loop()
                 }
                 else
                     continue;
+                
+
 
                 sciT = 0;
                 int sciCount = 0;
@@ -415,6 +482,7 @@ void hits::Loop()
                     }
                 }
 
+
                 if (sciCount > 0)
                 {
                     sciT /= sciCount;
@@ -423,6 +491,10 @@ void hits::Loop()
                     if (TypeA)
                     {
                         tracks.push_back({'A', strawCh, strawVmm, strawHitId, GemClusterA, gem_wmCh, gemAvT, true, strawT, sciT, sciHitId});
+                        if (straw_ch_b_temp != 0) 
+                        {
+                            abCorrVect.push_back({strawCh, strawVmm, strawHitId, strawT, straw_ch_b_temp, strawVmm_b_temp, straw_hit_id_b_temp, strawT_b_temp, up_temp, GemClusterA, gem_wmCh, gemAvT, true, sciT, sciHitId});
+                        }
                     }
                     else if (TypeB)
                     {
@@ -436,6 +508,10 @@ void hits::Loop()
                     if (TypeA)
                     {
                         tracks.push_back({'A', strawCh, strawVmm, strawHitId, GemClusterA, gem_wmCh, gemAvT, false, strawT, -1, -1});
+                        if (straw_ch_b_temp != 0)
+                        {
+                            abCorrVect.push_back({strawCh, strawVmm, strawHitId, strawT, straw_ch_b_temp, strawVmm_b_temp, straw_hit_id_b_temp, strawT_b_temp, up_temp, GemClusterA, gem_wmCh, gemAvT, false, -1, -1});
+                        }
                     }
                     else if (TypeB)
                     {
@@ -447,6 +523,81 @@ void hits::Loop()
             }
             else
                 continue;
+        }
+    }
+    // int straw_ch_a;
+    // int strawVmm_a;
+    // int straw_hit_id_a;
+    // long double strawT_a;
+    // int straw_ch_b;
+    // int strawVmm_b;
+    // int straw_hit_id_b;
+    // long double strawT_b;
+    // bool up;
+    // vector<array<int, 3> > gemCluster;
+    // long double gem_av_T;
+    // bool scintillator;
+    // long double sciT;
+
+    ofstream abCorFile;
+    abCorFile.open("txtFiles/abCorFile" + file + ".txt");
+
+    abCorFile << center("N", 5) << " | "
+              << center("STRAW A CH", 10) << " | "
+              << center("STRAW A ID", 10) << " | "
+              << center("STRAW B CH", 10) << " | "
+              << center("STRAW B ID", 10) << " | "
+              << center("STRAW B UP", 10) << " | "
+              << center("SCI ID", 10) << " | "
+              << center("GEM3Y claster CHs", 20) << " | "
+              << center("GEM3Y claster IDs", 20) << " | "
+              << center("GEM3Y wmCH", 15) << "\n";
+
+    abCorFile << std::string(120 + 10 * 3, '-') << "\n";
+
+    for (int i = 0; i < abCorrVect.size(); i++)
+    {
+        strawAB_plusSci_withGem tmpTrack = abCorrVect[i];
+        abCorFile << prd(i + 1, 0, 5) << " | "
+                  << prd(tmpTrack.straw_ch_a, 0, 10) << " | "
+                  << prd(tmpTrack.straw_hit_id_a, 0, 10) << " | "
+                  << prd(tmpTrack.straw_ch_b, 0, 10) << " | "
+                  << prd(tmpTrack.straw_hit_id_b, 0, 10) << " | "
+                  << prd(tmpTrack.up, 0, 10) << " | "
+                  << prd(tmpTrack.sci_hit_id, 0, 10) << " | "
+                  << prd(tmpTrack.gemCluster[0][0], 0, 20) << " | "
+                  << prd(tmpTrack.gemCluster[0][2], 0, 20) << " | "
+                  << prd(tmpTrack.gem_wm_ch, 0, 15) << "\n";
+
+        for (int j = 1; j < tmpTrack.gemCluster.size(); j++)
+        {
+            abCorFile << std::string(5, ' ') << " | "
+                      << std::string(10, ' ') << " | "
+                      << std::string(10, ' ') << " | "
+                      << std::string(10, ' ') << " | "
+                      << std::string(10, ' ') << " | "
+                      << std::string(10, ' ') << " | "
+                      << std::string(10, ' ') << " | "
+                      << prd(tmpTrack.gemCluster[j][0], 0, 20) << " | "
+                      << prd(tmpTrack.gemCluster[j][2], 0, 20) << " | "
+                      << std::string(15, ' ') << "\n";
+        }
+        abCorFile << std::string(120 + 10 * 3, '-') << "\n";
+    }
+
+    for (int j = 0; j < abCorrVect.size(); j++)
+    {
+        strawAB_plusSci_withGem tmpTrack = abCorrVect[j];
+        if (tmpTrack.scintillator)
+        {
+            if (tmpTrack.up)
+            {
+                bananaPlotUp->Fill(tmpTrack.strawT_a - tmpTrack.sciT, tmpTrack.strawT_b - tmpTrack.sciT);
+            }
+            else
+            {
+                bananaPlotDown->Fill(tmpTrack.strawT_a - tmpTrack.sciT, tmpTrack.strawT_b - tmpTrack.sciT);
+            }
         }
     }
 
@@ -491,9 +642,7 @@ void hits::Loop()
 
             continue;
         }
-    // h1->Fit("gaus", "", "", m1 - 4 * s1, m1 + 4 * s1); // TScint - TGEM3
-    // h2->Fit("gaus", "", "", m2 - 4 * s2, m2 + 4 * s2); // TScint - TStraw
-    // h3->Fit("gaus", "", "", m3 - 4 * s3, m3 + 4 * s3); // TGEM3 - TStraw
+
         double hitCoord = 0;
         double u = 0;
         int v = (int)tmpTrack.gem_wm_ch;
@@ -522,6 +671,7 @@ void hits::Loop()
                 three_det_trackB_rate->Fill(tmpTrack.strawT / 1e9);
             }
         }
+        gem_strawAB_correlarion_sci_only->Fill(tmpTrack.straw_ch, tmpTrack.gem_wm_ch);
         hitCoord = u * 0.4;
         if (hitCoord < 0 || hitCoord > 6)
             continue;
@@ -598,6 +748,10 @@ void hits::Loop()
     h_adc_straw->Write("straw_adc");
     deltaTstrawAvsB->Write("deltaTstrawAvsB");
     strawAstrawB_correlarion->Write("strawAstrawB_correlarion");
+    gem_strawAB_correlarion_sci_only->Write("gem_strawAB_correlarion_sci_only");
+    bananaPlotUp->Write("bananaPlotUp"); 
+    bananaPlotDown->Write("bananaPlotDown"); 
+    h2_3hit->Write("straw_scint");
     out->Close();
 
     TCanvas *c1 = new TCanvas("c1", "Type-A straws", 1440, 900);
@@ -645,7 +799,7 @@ void hits::Loop()
     Char_t ndf[80];
     Char_t sigma[80];
     Char_t mean[80];
-    auto legend = new TLegend(0.65, 0.9, 1.0, 0.75, "Any time and 10ch");
+    auto legend = new TLegend(0.65, 0.9, 1.0, 0.75, "Any time and 4 neighbors");
     sprintf(ndf, "#chi^{2}/NDF = %.2f / %.2i", deltaTstrawAvsB->GetFunction("gaus")->GetChisquare(), deltaTstrawAvsB->GetFunction("gaus")->GetNDF());
     legend->AddEntry(deltaTstrawAvsB, ndf);
     sprintf(sigma, "#sigma = %.1f", deltaTstrawAvsB->GetFunction("gaus")->GetParameter(2));
@@ -656,7 +810,7 @@ void hits::Loop()
     Char_t ndf1[80];
     Char_t sigma1[80];
     Char_t mean1[80];
-    auto legend1 = new TLegend(0.65, 0.75, 1.0, 0.60, "Any time and 4ch");
+    auto legend1 = new TLegend(0.65, 0.75, 1.0, 0.60, "Any time and 2 neighbor");
     sprintf(ndf1, "#chi^{2}/NDF = %.2f / %.2i", deltaTstrawAvsB_15ns->GetFunction("gaus")->GetChisquare(), deltaTstrawAvsB_15ns->GetFunction("gaus")->GetNDF());
     legend1->AddEntry(deltaTstrawAvsB_15ns, ndf1);
     sprintf(sigma1, "#sigma = %.1f", deltaTstrawAvsB_15ns->GetFunction("gaus")->GetParameter(2));
