@@ -5,10 +5,13 @@ txtFiles
 out
 legacy_code
 155
+gem
+5_04_bcid
 *.key
 *.pdf
 *.root
 *.txt
 *.png
 *.zip
+*.tar
 *.ppt

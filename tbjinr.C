@@ -212,6 +212,8 @@ void hits::Loop()
 
     auto *deltaBCIDstrawAvsB = new TH1D("deltaBCIDstrawAvsB", "deltaBCIDstrawAvsB",400, -200, 200);
 
+    auto *deltaBCIDstrawSci = new TH1D("deltaBCIDstrawSci", "deltaBCIDstrawSci",40, -20, 20);
+
 
     int strawAcounter = 0;
     int withoutBcounter = 0;
@@ -271,20 +273,27 @@ void hits::Loop()
                         adc_strawB->Fill(hits_adc[i]);
                     }
 
-                    if (hits_adc[i] == 448)
+                    if (hits_adc[i] == 144)
                     {
                         strawADC_448_Check->Fill(strawCh);
                     }
-                    else if (hits_adc[i] == 627)
+                    else if (hits_adc[i] == 160)
                     {
                         strawADC_627_Check->Fill(strawCh);
                     }
-                    else if (hits_adc[i] > 948 && hits_adc[i] < 1024)
+                    else if (hits_bcid[i] >= 120 && hits_bcid[i] <= 256)
                     {
                         strawADC_lastBins_Check->Fill(strawCh);
                     }
                 }
 
+                if (strawCh == 19) 
+                {
+                    bcid_straw_ch_96->Fill(hits_bcid[i]);
+                    tdc_straw_ch_96->Fill(hits_tdc[i]);
+                    adc_straw_ch_96->Fill(hits_adc[i]);
+                }
+                
 
                 strawLife->Fill(hits_time[i]/1e9, strawCh);
 
@@ -301,13 +310,6 @@ void hits::Loop()
                 strawTdc = (int)hits_tdc[i];
                 
 
-                if (strawCh == 96) 
-                {
-                    bcid_straw_ch_96->Fill(hits_bcid[i]);
-                    tdc_straw_ch_96->Fill(hits_tdc[i]);
-                    adc_straw_ch_96->Fill(hits_adc[i]);
-                }
-                
 
             
 
@@ -456,6 +458,7 @@ void hits::Loop()
                     strawSci_Corr->Fill(sciT - strawT);
                     strawBCID_correlarion->Fill(strawBCID, sciT - strawT);
                     sciBCID_correlarion->Fill(sciBCID, sciT - strawT);
+                    deltaBCIDstrawSci->Fill(strawBCID - sciBCID);
                     if (strawHitId_B != 0)
                     {
                         strawASci_Corr->Fill(sciT - strawT);
@@ -569,6 +572,7 @@ void hits::Loop()
     deltaTstrawAvsB_viaTDC->Write("deltaTstrawAvsB_viaTDC");
 
     deltaBCIDstrawAvsB->Write("deltaBCIDstrawAvsB");
+    deltaBCIDstrawSci->Write("deltaBCIDstrawSci");
 
     out->Close();
 

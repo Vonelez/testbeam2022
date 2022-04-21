@@ -21,7 +21,7 @@ public:
     // TString file = "107_at_peak_full";
     // TString file ="1543_at_threshold_full";
     // TString file = "200ns_40MHz_1700V";
-    TString file = "Ru106_40MHz_stcr_1550V";
+    TString file = "gem/GEM_XY_FeSpot";
     TString ending = ".root";
     TTree *fChain;  //! pointer to the analyzed TTree or TChain
     Int_t fCurrent; //! current Tree number in a TChain
@@ -95,8 +95,8 @@ public:
     virtual Long64_t LoadTree(Long64_t entry);
     virtual void Init(TTree *tree);
     virtual void Loop();
-    virtual int gemChConverter(int ch, int vmm);
-    virtual void threePlotDrawF(TH1D* h1, TH1D* h2, TH1D* h3, TString name);
+    // virtual int gemChConverter(int ch, int vmm);
+    // virtual void threePlotDrawF(TH1D* h1, TH1D* h2, TH1D* h3, TString name);
     virtual Bool_t Notify();
     virtual void Show(Long64_t entry = -1);
 };
